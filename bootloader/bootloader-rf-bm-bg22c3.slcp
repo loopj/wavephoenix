@@ -1,0 +1,21 @@
+project_name: bootloader
+quality: production
+description: Standalone Bootloader using the Bluetooth AppLoader OTA DFU. This implements in-place application updates using Bluetooth connection.
+
+component:
+  - id: EFR32BG22C224F512GM32
+  - id: bootloader_core
+  - id: bootloader_apploader
+  - id: bootloader_image_parser
+  - id: bootloader_debug
+  - id: bootloader_gpio_activation
+
+configuration:
+  - name: BTL_APPLOADER_DEVICE_NAME
+    value: "\"WavePhoenix\""
+
+define:
+  - name: SL_BTL_BUTTON_PORT
+    value: gpioPortB
+  - name: SL_BTL_BUTTON_PIN
+    value: 0

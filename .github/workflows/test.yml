@@ -1,0 +1,33 @@
+name: Run Tests
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "firmware/libsi/**"
+      - "firmware/libwavebird/**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run libsi tests
+        run: |
+          cd firmware/libsi
+          cmake -Bbuild && cmake --build build --target test_si
+          ./build/test/test_si
+    
+      - name: Run libwavebird tests
+        run: |
+          cd firmware/libwavebird
+          cmake -Bbuild && cmake --build build --target test_wavebird
+          ./build/test/test_wavebird

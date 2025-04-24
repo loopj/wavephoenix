@@ -1,0 +1,56 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}"
+    },
+    {
+      "name": "rf-bm-bg22c3",
+      "inherits": "base",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/arm-cortex-m33.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "LINKER_SCRIPT": "${sourceDir}/ldscripts/efr32xg22.ld",
+        "GECKO_DEVICE": "EFR32BG22C224F512GM32",
+        "GECKO_CPU_FAMILY": "EFR32BG22",
+        "BOARD": "rf-bm-bg22c3",
+        "DEBUG": true
+      }
+    },
+    {
+      "name": "efr32xg22e",
+      "inherits": "base",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/arm-cortex-m33.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "LINKER_SCRIPT": "${sourceDir}/ldscripts/efr32xg22.ld",
+        "GECKO_DEVICE": "EFR32MG22C224F512IM40",
+        "GECKO_CPU_FAMILY": "EFR32MG22",
+        "BOARD": "efr32xg22e",
+        "DEBUG": true
+      }
+    },
+    {
+      "name": "host",
+      "description": "Configure build for compiling for the host system (for tests).",
+      "inherits": "base"
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "rf-bm-bg22c3",
+      "configurePreset": "rf-bm-bg22c3"
+    },
+    {
+      "name": "efr32xg22e",
+      "configurePreset": "efr32xg22e"
+    },
+    {
+      "name": "test_host",
+      "configurePreset": "host"
+    }
+  ]
+}
