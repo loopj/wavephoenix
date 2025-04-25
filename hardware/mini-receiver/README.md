@@ -126,6 +126,8 @@ The complete assembly should look like this:
 
 WavePhoenix receivers have two pieces of software running on them, the *bootloader* and the *application firmware*. The *bootloader* allows us to flash future application updates over Bluetooth, the *application firmware* is the program that handles WaveBird communication.
 
+You can [find the latest bootloader and firmware here](https://github.com/loopj/wavephoenix/releases/latest), the mini-receiver needs the `rf-bm-bg22c3` build of the firmware.
+
 The first-time flashing of the firmware requires a debug probe and some special software. If your WavePhoenix board already has the bootloader flashed, you can skip this part.
 
 ### Debug Probes
@@ -231,7 +233,11 @@ WavePhoenix receivers use "virtual pairing" instead of the original WaveBird’s
 
 ### Upgrading Firmware
 
-The easiest way to flash  firmware is to use the OTA update feature of the bootloader. If you have a computer with Bluetooth, you can use the [WavePhoenix CLI](https://github.com/loopj/wavephoenix-cli) to flash the firmware:
+The easiest way to flash  firmware is to use the OTA update feature of the bootloader.
+
+Use the `wavephoenix-receiver-vx.y.z-rf-bm-bg22c3.gbl` version of the firmware file from the [latest release](https://github.com/loopj/wavephoenix/releases/latest).
+
+If you have a computer with Bluetooth, you can use the [WavePhoenix CLI](https://github.com/loopj/wavephoenix-cli) to flash the firmware:
 
 ```bash
 wavephoenix flash firmware.gbl
