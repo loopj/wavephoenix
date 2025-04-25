@@ -21,7 +21,7 @@ The receiver uses a cheap, off-the-shelf wireless module (the [RF-BM-BG22C3](htt
 
 - Assembled Mini Receiver PCB - (see [PCB](#pcb))
 - 3D printed case - (see [Case](#case))
-- GameCube male connector - ([AliExpress](https://www.aliexpress.us/item/3256806630808741.html))
+- GameCube male connector - ([AliExpress](https://www.aliexpress.us/item/3256804501860592.html), [Alibaba](https://www.alibaba.com/product-detail/NGC-Gamecube-Male-Connector_1600107604838.html), [eBay](https://www.ebay.com/itm/354372477064))
 - JST-SH 4-Pin connector with pre-crimped cable - ([AliExpress](https://www.aliexpress.us/item/3256803952186380.html), [Amazon](https://www.amazon.com/dp/B0D9WMLZ7B/))
 - 1.5mm PMMA fiber cable - ([AliExpress](https://www.aliexpress.us/item/3256806278563564.html)) *or* 1.5mm diameter x 4mm light pipe - ([AliExpress](https://www.aliexpress.us/item/3256801194682892.html))
 - Crimping tool or soldering iron (depending on the your connector type)
