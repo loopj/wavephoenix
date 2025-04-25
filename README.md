@@ -148,6 +148,15 @@ I still think there is *a ton* of room for improvement here, pull requests would
 - **N64 WaveBird receiver** - the N64 uses the same SI protocol as the GameCube, with just a slightly different input polling command, so designing a WaveBird receiver for the N64 is within reach!
 - **USB HID dongle** - instead of sending input data over the SI bus, we could instead incorporate something like a [CH9329](https://www.wch-ic.com/products/CH9329.html) and send the input data over USB HID. This would allow you to use a WaveBird controller on any device that supports USB HID, such as a PC running Dolphin or RetroArch!
 
+## Special Thanks
+
+- [Sam Edwards](https://github.com/CFSworks) for his incredible WaveBird reverse engineering documentation, which was essential in getting this working
+- [Jeff Longo](https://jefflongo.dev) - for his detailed GameCube controller protocol documentation
+- [Aurelio Mannara](https://github.com/Aurelio92) - for open sourcing GC+, another great reference for the GameCube controller protocol
+- [YveltalGriffin](https://bsky.app/profile/mks.bsky.social) - for help and advice along the way, and helping me figure out those mysterious origin packets
+- piotref1 - for being the very first person to build a WavePhoenix receiver and provide feedback, a true early adopter!
+- Everyone in the incredible [BitBuilt community](https://bitbuilt.net/) for their support and encouragement throughout this project
+
 ## License
 
 The firmware in this repository is licensed under the [MIT License](firmware/LICENSE).
