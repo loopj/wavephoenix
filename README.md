@@ -147,3 +147,9 @@ I still think there is *a ton* of room for improvement here, pull requests would
 - **Transmitter firmware** - `libwavebird` includes packet encoding functions, so with a little work you could "build your own" WaveBird controller!
 - **N64 WaveBird receiver** - the N64 uses the same SI protocol as the GameCube, with just a slightly different input polling command, so designing a WaveBird receiver for the N64 is within reach!
 - **USB HID dongle** - instead of sending input data over the SI bus, we could instead incorporate something like a [CH9329](https://www.wch-ic.com/products/CH9329.html) and send the input data over USB HID. This would allow you to use a WaveBird controller on any device that supports USB HID, such as a PC running Dolphin or RetroArch!
+
+## License
+
+The firmware in this repository is licensed under the [MIT License](firmware/LICENSE).
+
+The hardware is licensed under the [Solderpad Hardware License v2.1](hardware/LICENSE).
