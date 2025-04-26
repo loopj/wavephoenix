@@ -231,11 +231,18 @@ You should now have a fully functional WavePhoenix receiver!
 
 WavePhoenix receivers use "virtual pairing" instead of the original WaveBird’s channel wheel. To initiate pairing, press the receiver’s pairing button. The onboard LED will start blinking to indicate the receiver is now in pairing mode. Press and hold X + Y on the WaveBird controller to pair a WaveBird to a receiver. Once pairing is successful, the LED will stop blinking and remain solid.
 
+### Entering Bootloader Mode
+
+You can enter the bootloader for OTA updates in two ways:
+
+1. Press and hold the pairing button for more than 3 seconds, until the LED turns off
+2. Press and hold the pairing button while plugging in the receiver
+
 ### Upgrading Firmware
 
-The easiest way to flash  firmware is to use the OTA update feature of the bootloader.
+The easiest way to flash firmware is to use the OTA update feature of the bootloader.
 
-Use the `wavephoenix-receiver-vx.y.z-rf-bm-bg22c3.gbl` version of the firmware file from the [latest release](https://github.com/loopj/wavephoenix/releases/latest).
+First enter bootloader mode (see above), and download the `wavephoenix-receiver-vx.y.z-rf-bm-bg22c3.gbl` version of the firmware file from the [latest release](https://github.com/loopj/wavephoenix/releases/latest).
 
 If you have a computer with Bluetooth, you can use the [WavePhoenix CLI](https://github.com/loopj/wavephoenix-cli) to flash the firmware:
 
