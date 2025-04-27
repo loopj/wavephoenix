@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION "3.21")
 project(si LANGUAGES C)
 
 # Define the library
-add_library(si STATIC "src/crc8.c" "src/commands.c" "src/device/gc_controller.c")
+add_library(si STATIC "src/crc8.c" "src/commands.c" "src/device/n64_controller.c" "src/device/gc_controller.c")
 
 # Specify the include paths
 target_include_directories(si PUBLIC include)

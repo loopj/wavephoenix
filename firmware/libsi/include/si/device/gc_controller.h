@@ -7,6 +7,27 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+// GameCube controller SI commands
+#define SI_CMD_GC_SHORT_POLL        0x40
+#define SI_CMD_GC_SHORT_POLL_LEN    3
+#define SI_CMD_GC_SHORT_POLL_RESP   8
+
+#define SI_CMD_GC_READ_ORIGIN       0x41
+#define SI_CMD_GC_READ_ORIGIN_LEN   1
+#define SI_CMD_GC_READ_ORIGIN_RESP  10
+
+#define SI_CMD_GC_CALIBRATE         0x42
+#define SI_CMD_GC_CALIBRATE_LEN     3
+#define SI_CMD_GC_CALIBRATE_RESP    10
+
+#define SI_CMD_GC_LONG_POLL         0x43
+#define SI_CMD_GC_LONG_POLL_LEN     3
+#define SI_CMD_GC_LONG_POLL_RESP    10
+
+#define SI_CMD_GC_FIX_DEVICE        0x4E
+#define SI_CMD_GC_FIX_DEVICE_LEN    3
+#define SI_CMD_GC_FIX_DEVICE_RESP   3
+
 /**
  * Rumble motor states.
  */
@@ -88,7 +109,6 @@ struct si_device_gc_controller {
  *
  * @param device the device to initialize
  * @param type the device type flags
- * @param input_state pointer to an input state buffer
  */
 void si_device_gc_init(struct si_device_gc_controller *device, uint8_t type);
 

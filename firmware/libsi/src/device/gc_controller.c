@@ -284,11 +284,11 @@ void si_device_gc_init(struct si_device_gc_controller *device, uint8_t type)
 
   // Register the SI commands handled by GameCube controllers
   si_command_register(SI_CMD_INFO, SI_CMD_INFO_LEN, handle_info, device);
+  si_command_register(SI_CMD_RESET, SI_CMD_RESET_LEN, handle_reset, device);
   si_command_register(SI_CMD_GC_SHORT_POLL, SI_CMD_GC_SHORT_POLL_LEN, handle_short_poll, device);
   si_command_register(SI_CMD_GC_READ_ORIGIN, SI_CMD_GC_READ_ORIGIN_LEN, handle_read_origin, device);
   si_command_register(SI_CMD_GC_CALIBRATE, SI_CMD_GC_CALIBRATE_LEN, handle_calibrate, device);
   si_command_register(SI_CMD_GC_LONG_POLL, SI_CMD_GC_LONG_POLL_LEN, handle_long_poll, device);
-  si_command_register(SI_CMD_RESET, SI_CMD_RESET_LEN, handle_reset, device);
 
   // Register additional commands handled by WaveBird receivers
   if (type & SI_GC_WIRELESS) {
