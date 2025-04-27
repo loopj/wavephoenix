@@ -240,17 +240,29 @@ You can enter the bootloader for OTA updates in two ways:
 
 ### Upgrading Firmware
 
-The easiest way to flash firmware is to use the OTA update feature of the bootloader.
+You can always find the latest receiver firmware in the [latest release](https://github.com/loopj/wavephoenix/releases/latest) on GitHub. The firmware is available in two formats, a `.gbl` file for over-the-air updates, and a `.hex` file for flashing via SWD.
 
-First enter bootloader mode (see above), and download the `wavephoenix-receiver-vx.y.z-rf-bm-bg22c3.gbl` version of the firmware file from the [latest release](https://github.com/loopj/wavephoenix/releases/latest).
+The mini receiver uses the `rf-bm-bg22c3` build of the firmware, which is specifically designed for the RF-BM-BG22C3 module.
 
-If you have a computer with Bluetooth, you can use the [WavePhoenix CLI](https://github.com/loopj/wavephoenix-cli) to flash the firmware:
+#### Using the WavePhoenix Web App
+
+If you have a computer with Bluetooth or an Android phone, you can use the [WavePhoenix Web App](https://web.wavephoenix.com) in Google Chrome to flash the firmware.
+
+#### Using the WavePhoenix CLI
+
+If you have a computer with Bluetooth, you can also use the [WavePhoenix CLI](https://github.com/loopj/wavephoenix-cli) to flash the firmware:
 
 ```bash
 wavephoenix flash firmware.gbl
 ```
 
-Alternatively, you can use the [Simplicity Connect mobile app](https://www.silabs.com/developer-tools/simplicity-connect-mobile-app?tab=downloads) to flash the firmware, or you can re-flash the firmware using SWD as describe in the [Initial Firmware Flashing](#initial-firmware-flashing) section.
+#### Using the Simplicity Connect app
+
+Another option is to use the [Simplicity Connect mobile app](https://www.silabs.com/developer-tools/simplicity-connect-mobile-app?tab=downloads) to flash the firmware.
+
+#### Flashing via SWD
+
+You can also always use SWD to re-flash the firmware, as described in the [Initial Firmware Flashing](#initial-firmware-flashing) section.
 
 ## Appendix
 
