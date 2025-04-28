@@ -7,6 +7,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "si/si.h"
+
 // GameCube controller SI commands
 #define SI_CMD_GC_SHORT_POLL        0x40
 #define SI_CMD_GC_SHORT_POLL_LEN    3
@@ -157,7 +159,7 @@ static inline bool si_device_gc_wireless_id_fixed(struct si_device_gc_controller
  * @param device the device to set the input state for
  * @param valid true if the input state is valid
  */
-static inline void si_device_set_input_valid(struct si_device_gc_controller *device, bool valid)
+static inline void si_device_gc_set_input_valid(struct si_device_gc_controller *device, bool valid)
 {
   device->input_valid = valid;
 }

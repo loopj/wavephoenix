@@ -77,8 +77,8 @@ struct {
 } packet_stats = {0};
 
 // SI state
-static struct si_device_gc_controller si_device = {0};
-static bool enable_si_command_handling          = true;
+static struct si_device_gc_controller si_device;
+static bool enable_si_command_handling = true;
 
 // Buttons, switches, and LEDs
 static struct led *status_led              = NULL;
@@ -91,8 +91,8 @@ static bool pairing_active = false;
 // Current settings
 static wp_settings_t settings;
 
-// Stale inpute validation
-static uint32_t input_valid_until = 0;
+// Stale input validation
+static uint32_t stale_input_timeout = 0;
 
 // Milliseconds timer
 static volatile uint32_t millis = 0;
@@ -141,6 +141,44 @@ static void handle_channel_wheel_change(struct channel_wheel *channel_wheel, uin
   wavebird_radio_set_channel(value);
 }
 #endif
+
+// Update the input state of a GC controller from a WaveBird packet
+static void update_gc_input_state(struct si_device_gc_controller *si_device, const uint8_t *message)
+{
+  // Clear the buttons in the SI input state
+  si_device->input.buttons.bytes[0] &= ~0x1F;
+  si_device->input.buttons.bytes[1] &= ~0x7F;
+
+  // Copy the buttons from the WaveBird message
+  si_device->input.buttons.bytes[0] |= (message[3] & 0x80) >> 7 | (message[2] & 0x0F) << 1;
+  si_device->input.buttons.bytes[1] |= (message[3] & 0x7F);
+
+  // Copy the stick, substick, and trigger values
+  memcpy(&si_device->input.stick_x, &message[4], 6);
+
+  // Set the input state as valid
+  si_device_gc_set_input_valid(si_device, true);
+}
+
+// Update the origin state of a GC controller from a WaveBird packet
+static void update_gc_origin_state(struct si_device_gc_controller *si_device, const uint8_t *message)
+{
+  // Copy the origin values from the packet
+  uint8_t new_origin[] = {
+      wavebird_origin_get_stick_x(message),      wavebird_origin_get_stick_y(message),
+      wavebird_origin_get_substick_x(message),   wavebird_origin_get_substick_y(message),
+      wavebird_origin_get_trigger_left(message), wavebird_origin_get_trigger_right(message),
+  };
+
+  // Check if the origin packet is different from the last known origin
+  if (memcmp(&si_device->origin.stick_x, new_origin, 6) != 0) {
+    // Update the origin state
+    memcpy(&si_device->origin.stick_x, new_origin, 6);
+
+    // Set the "need origin" flag to true so the host knows to fetch the new origin
+    si_device->input.buttons.need_origin = true;
+  }
+}
 
 // Handle packets from the WaveBird radio
 static void handle_wavebird_packet(const uint8_t *packet)
@@ -192,47 +230,17 @@ static void handle_wavebird_packet(const uint8_t *packet)
 
   // Handle the packet
   if (wavebird_message_get_type(message) == WB_MESSAGE_TYPE_INPUT_STATE) {
-    //
-    // Handle input state packets
-    //
-
-    // Clear the buttons in the SI input state
-    si_device.input.buttons.bytes[0] &= ~0x1F;
-    si_device.input.buttons.bytes[1] &= ~0x7F;
-
-    // Copy the buttons from the WaveBird message
-    si_device.input.buttons.bytes[0] |= (message[3] & 0x80) >> 7 | (message[2] & 0x0F) << 1;
-    si_device.input.buttons.bytes[1] |= (message[3] & 0x7F);
-
-    // Copy the stick, substick, and trigger values
-    memcpy(&si_device.input.stick_x, &message[4], 6);
+    // Update the SI input state
+    update_gc_input_state(&si_device, message);
 
     // We have a good input state, enable SI command handling if it was disabled
     enable_si_command_handling = true;
 
-    // Set the input state as valid
-    input_valid_until = millis + INPUT_VALID_MS;
-    si_device_set_input_valid(&si_device, true);
+    // Update the "stale input" timer
+    stale_input_timeout = millis + INPUT_VALID_MS;
   } else {
-    //
-    // Handle origin packets
-    //
-
-    // Copy the origin values from the packet
-    uint8_t new_origin[] = {
-        wavebird_origin_get_stick_x(message),      wavebird_origin_get_stick_y(message),
-        wavebird_origin_get_substick_x(message),   wavebird_origin_get_substick_y(message),
-        wavebird_origin_get_trigger_left(message), wavebird_origin_get_trigger_right(message),
-    };
-
-    // Check if the origin packet is different from the last known origin
-    if (memcmp(&si_device.origin.stick_x, new_origin, 6) != 0) {
-      // Update the origin state
-      memcpy(&si_device.origin.stick_x, new_origin, 6);
-
-      // Set the "need origin" flag to true so the host knows to fetch the new origin
-      si_device.input.buttons.need_origin = true;
-    }
+    // Update the SI origin state
+    update_gc_origin_state(&si_device, message);
   }
 }
 
@@ -441,7 +449,7 @@ int main(void)
       led_effect_update(status_led, millis);
 
     // Invalidate stale inputs
-    if (si_device.input_valid && (int32_t)(millis - input_valid_until) >= 0)
-      si_device_set_input_valid(&si_device, false);
+    if (si_device.input_valid && (int32_t)(millis - stale_input_timeout) >= 0)
+      si_device_gc_set_input_valid(&si_device, false);
   }
 }
