@@ -12,6 +12,7 @@
 enum {
   WB_RADIO_IDLE,
   WB_RADIO_RX_PAIRING_SCANNING,
+  WB_RADIO_RX_PAIRING_READY_TO_QUALIFY,
   WB_RADIO_RX_PAIRING_QUALIFYING,
   WB_RADIO_RX_ACTIVE,
 };
@@ -24,15 +25,15 @@ static const uint8_t WAVEBIRD_CHANNEL_MAP[] = {
 };
 
 // Interrupt status flags
-static volatile bool packet_held        = false;
-static volatile bool sync_word_detected = false;
-static volatile int error_code          = 0;
+static volatile bool packet_held = false;
+static volatile int error_code   = 0;
 
 // Current radio state
 static uint8_t radio_state     = WB_RADIO_IDLE;
 static uint8_t current_channel = 0;
 
 // Callback functions
+static wavebird_radio_work_pending_fn_t work_pending_callback         = NULL;
 static wavebird_radio_packet_fn_t packet_callback                     = NULL;
 static wavebird_radio_error_fn_t error_callback                       = NULL;
 static wavebird_radio_pairing_started_fn_t pairing_started_callback   = NULL;
@@ -42,8 +43,17 @@ static wavebird_radio_pairing_finished_fn_t pairing_finished_callback = NULL;
 static RAIL_Handle_t rail_handle;
 static __ALIGNED(RAIL_FIFO_ALIGNMENT) uint8_t packet_buffer[WAVEBIRD_PACKET_BYTES];
 
+// RAIL channel hopping configuration
+uint32_t channel_hopping_buffer[1024]; // TODO
+RAIL_RxChannelHoppingConfigEntry_t channel_hopping_entries[WAVEBIRD_RADIO_NUM_CHANNELS];
+RAIL_RxChannelHoppingConfig_t channel_hopping_config = {
+    .entries          = channel_hopping_entries,
+    .bufferLength     = 1024,
+    .buffer           = channel_hopping_buffer,
+    .numberOfChannels = WAVEBIRD_RADIO_NUM_CHANNELS,
+};
+
 // Pairing timeouts
-#define PAIRING_TIMEOUT         30000000  // Timeout entire pairing process after 30 seconds
 #define PAIRING_DETECT_TIMEOUT  10000     // Listen for sync words for 10ms on each channel
 #define PAIRING_QUALIFY_TIMEOUT 200000    // Hold on the channel for 200ms to qualify activity
 
@@ -53,13 +63,25 @@ static uint8_t qualify_threshold              = 5;
 
 // Pairing state
 static struct pairing_state {
-  bool first_scan;
-  uint8_t channel;
-  uint32_t timeout;
-  uint32_t detect_timeout;
+  uint16_t channel;
   uint32_t qualify_timeout;
   uint8_t qualified_packets;
 } pairing_state;
+
+static void start_channel_scanning(bool reset)
+{
+  RAIL_Idle(rail_handle, RAIL_IDLE, true);
+  RAIL_EnableRxChannelHopping(rail_handle, true, reset);
+  RAIL_StartRx(rail_handle, WAVEBIRD_CHANNEL_MAP[0], NULL);
+
+  radio_state = WB_RADIO_RX_PAIRING_SCANNING;
+}
+
+static void stop_channel_scanning(void)
+{
+  RAIL_Idle(rail_handle, RAIL_IDLE, true);
+  RAIL_EnableRxChannelHopping(rail_handle, false, false);
+}
 
 // Interrupt handler for RAIL events
 static void handle_rail_event(RAIL_Handle_t handle, RAIL_Events_t events)
@@ -71,10 +93,27 @@ static void handle_rail_event(RAIL_Handle_t handle, RAIL_Events_t events)
       if (radio_state == WB_RADIO_RX_PAIRING_QUALIFYING || radio_state == WB_RADIO_RX_ACTIVE) {
         RAIL_HoldRxPacket(handle);
         packet_held = true;
+
+        if (work_pending_callback)
+          work_pending_callback();
       }
     } else {
       // RX completed without a packet, this is an error
       error_code = -WB_RADIO_ERR_NO_PACKET;
+
+      if (work_pending_callback)
+        work_pending_callback();
+    }
+  }
+
+  // Check for sync words during channel scanning
+  if (events & RAIL_EVENT_RX_SYNC1_DETECT) {
+    if (radio_state == WB_RADIO_RX_PAIRING_SCANNING) {
+      RAIL_GetChannelAlt(handle, &pairing_state.channel);
+      radio_state = WB_RADIO_RX_PAIRING_READY_TO_QUALIFY;
+
+      if (work_pending_callback)
+        work_pending_callback();
     }
   }
 
@@ -84,12 +123,10 @@ static void handle_rail_event(RAIL_Handle_t handle, RAIL_Events_t events)
     if (status != RAIL_STATUS_NO_ERROR) {
       // Calibration error
       error_code = -WB_RADIO_ERR_CALIBRATION;
-    }
-  }
 
-  // Check for sync words during channel scanning
-  if (radio_state == WB_RADIO_RX_PAIRING_SCANNING && events & RAIL_EVENT_RX_SYNC1_DETECT) {
-    sync_word_detected = true;
+      if (work_pending_callback)
+        work_pending_callback();
+    }
   }
 }
 
@@ -144,6 +181,15 @@ int wavebird_radio_init(wavebird_radio_packet_fn_t packet_fn, wavebird_radio_err
   RAIL_StateTransitions_t rx_transitions = {RAIL_RF_STATE_RX, RAIL_RF_STATE_RX};
   status |= RAIL_SetRxTransitions(rail_handle, &rx_transitions);
 
+  // Initialize channel hopping configuration
+  for (uint8_t i = 0; i < WAVEBIRD_RADIO_NUM_CHANNELS; i++) {
+    channel_hopping_entries[i].channel   = WAVEBIRD_CHANNEL_MAP[i];
+    channel_hopping_entries[i].mode      = RAIL_RX_CHANNEL_HOPPING_MODE_TIMING_SENSE;
+    channel_hopping_entries[i].parameter = PAIRING_DETECT_TIMEOUT;
+    channel_hopping_entries[i].delay     = 0; // No delay between hops
+  }
+  status |= RAIL_ConfigRxChannelHopping(rail_handle, &channel_hopping_config);
+
   // Check for errors during configuration
   if (status != RAIL_STATUS_NO_ERROR)
     return -WB_RADIO_ERR;
@@ -183,6 +229,11 @@ void wavebird_radio_configure_qualification(wavebird_radio_qualify_fn_t _qualify
   qualify_threshold = _qualify_threshold;
 }
 
+void wavebird_radio_set_work_pending_callback(wavebird_radio_work_pending_fn_t callback)
+{
+  work_pending_callback = callback;
+}
+
 void wavebird_radio_set_pairing_started_callback(wavebird_radio_pairing_started_fn_t callback)
 {
   pairing_started_callback = callback;
@@ -195,17 +246,8 @@ void wavebird_radio_set_pairing_finished_callback(wavebird_radio_pairing_finishe
 
 void wavebird_radio_start_pairing(void)
 {
-  // Stop any ongoing RX
-  RAIL_Idle(rail_handle, RAIL_IDLE, true);
-
-  // Reset the pairing state
-  pairing_state.timeout           = RAIL_GetTime() + PAIRING_TIMEOUT;
-  pairing_state.first_scan        = true;
-  pairing_state.channel           = 0;
-  pairing_state.qualified_packets = 0;
-
   // Start the channel scanning process
-  radio_state = WB_RADIO_RX_PAIRING_SCANNING;
+  start_channel_scanning(true);
 
   // Fire the pairing started callback
   if (pairing_started_callback)
@@ -214,6 +256,9 @@ void wavebird_radio_start_pairing(void)
 
 void wavebird_radio_stop_pairing(void)
 {
+  // Stop channel scanning
+  stop_channel_scanning();
+
   // Reset the channel
   wavebird_radio_set_channel(current_channel);
 
@@ -225,63 +270,41 @@ void wavebird_radio_stop_pairing(void)
 void wavebird_radio_process(void)
 {
   switch (radio_state) {
-    // Do nothing in the idle state
-    case WB_RADIO_IDLE:
-      break;
+    case WB_RADIO_RX_PAIRING_READY_TO_QUALIFY:
+      stop_channel_scanning();
 
-    // Loop through channels, listening for sync words
-    case WB_RADIO_RX_PAIRING_SCANNING:
-      // Check for activity on the current channel
-      if (sync_word_detected) {
-        sync_word_detected            = false;
-        pairing_state.qualify_timeout = RAIL_GetTime() + PAIRING_QUALIFY_TIMEOUT;
+      RAIL_StartRx(rail_handle, pairing_state.channel, NULL);
 
-        radio_state = WB_RADIO_RX_PAIRING_QUALIFYING;
-      }
-
-      // Check if the pairing timeout has expired
-      if (RAIL_GetTime() > pairing_state.timeout) {
-        // Reset the channel to the original channel
-        wavebird_radio_set_channel(current_channel);
-
-        // Fire the pairing callback
-        if (pairing_finished_callback)
-          pairing_finished_callback(WB_RADIO_PAIRING_TIMEOUT, current_channel);
-
-        break;
-      }
-
-      // If this is the first scan, or the detect timeout has expired, move to the next channel
-      if (pairing_state.first_scan || RAIL_GetTime() > pairing_state.detect_timeout) {
-        if (pairing_state.first_scan) {
-          pairing_state.first_scan = false;
-        } else {
-          pairing_state.channel = (pairing_state.channel + 1) % 16;
-        }
-
-        pairing_state.detect_timeout = RAIL_GetTime() + PAIRING_DETECT_TIMEOUT;
-        RAIL_StartRx(rail_handle, WAVEBIRD_CHANNEL_MAP[pairing_state.channel], NULL);
-      }
+      pairing_state.qualify_timeout   = RAIL_GetTime() + PAIRING_QUALIFY_TIMEOUT;
+      pairing_state.qualified_packets = 0;
+      radio_state                     = WB_RADIO_RX_PAIRING_QUALIFYING;
 
       break;
-
     // Hold on the channel for a short time to qualify pairing activity
     case WB_RADIO_RX_PAIRING_QUALIFYING:
       // Check for packets on the current channel
       if (packet_held) {
         while (get_oldest_pending_packet(packet_buffer, rail_handle)) {
           // Check if the packet qualifies for pairing
-          if (!qualify_fn || qualify_fn(packet_buffer))
+          if (!qualify_fn || qualify_fn(packet_buffer)) {
             pairing_state.qualified_packets++;
+          }
 
           // If we have received enough qualifying packets, finish pairing
           if (pairing_state.qualified_packets >= qualify_threshold) {
+            // Look up the channel in the channel map
+            uint8_t channel_number;
+            for (channel_number = 0; channel_number < WAVEBIRD_RADIO_NUM_CHANNELS; channel_number++) {
+              if (WAVEBIRD_CHANNEL_MAP[channel_number] == pairing_state.channel)
+                break;
+            }
+
             // Set the new channel
-            wavebird_radio_set_channel(pairing_state.channel);
+            wavebird_radio_set_channel(channel_number);
 
             // Fire the pairing callback
             if (pairing_finished_callback)
-              pairing_finished_callback(WB_RADIO_PAIRING_SUCCESS, pairing_state.channel);
+              pairing_finished_callback(WB_RADIO_PAIRING_SUCCESS, channel_number);
 
             break;
           }
@@ -291,11 +314,9 @@ void wavebird_radio_process(void)
       }
 
       // If the qualify timeout has expired, move back to scanning
-      if ((RAIL_GetTime() > pairing_state.qualify_timeout)) {
-        pairing_state.qualified_packets = 0;
+      if ((RAIL_GetTime() > pairing_state.qualify_timeout))
+        start_channel_scanning(false);
 
-        radio_state = WB_RADIO_RX_PAIRING_SCANNING;
-      }
       break;
 
     // Listen for packets on the selected/paired channel
@@ -318,5 +339,9 @@ void wavebird_radio_process(void)
         // Clear the interrupt flag
         error_code = 0;
       }
+      break;
+
+    default:
+      break;
   }
 }

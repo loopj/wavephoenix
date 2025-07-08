@@ -41,6 +41,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define WAVEBIRD_RADIO_NUM_CHANNELS 16
+
 // Radio error codes
 enum {
   WB_RADIO_ERR = 1,
@@ -56,6 +58,9 @@ enum {
   WB_RADIO_PAIRING_CANCELLED,
   WB_RADIO_PAIRING_TIMEOUT,
 };
+
+// Work pending callback function
+typedef void (*wavebird_radio_work_pending_fn_t)(void);
 
 // Packet ready callback function
 typedef void (*wavebird_radio_packet_fn_t)(const uint8_t *packet);
@@ -103,6 +108,13 @@ int wavebird_radio_set_channel(uint8_t channel);
  * @param qualify_threshold number of packets that must qualify for pairing to succeed
  */
 void wavebird_radio_configure_qualification(wavebird_radio_qualify_fn_t qualify_fn, uint8_t qualify_threshold);
+
+/**
+ * Set the work pending callback function.
+ *
+ * @param callback callback function to call when work is pending
+ */
+void wavebird_radio_set_work_pending_callback(wavebird_radio_work_pending_fn_t callback);
 
 /**
  * Set the pairing started callback function.
