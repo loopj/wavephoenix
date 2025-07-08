@@ -17,7 +17,7 @@
         "GECKO_DEVICE": "EFR32BG22C224F512GM32",
         "GECKO_CPU_FAMILY": "EFR32BG22",
         "BOARD": "rf-bm-bg22c3",
-        "DEBUG": true
+        "DEBUG": false
       }
     },
     {
@@ -30,7 +30,7 @@
         "GECKO_DEVICE": "EFR32MG22C224F512IM40",
         "GECKO_CPU_FAMILY": "EFR32MG22",
         "BOARD": "efr32xg22e",
-        "DEBUG": true
+        "DEBUG": false
       }
     },
     {

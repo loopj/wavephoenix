@@ -4,6 +4,7 @@
 #include "em_chip.h"
 #include "em_cmu.h"
 #include "em_gpio.h"
+#include "em_usart.h"
 
 #include "si/commands.h"
 #include "si/device/gc_controller.h"
@@ -24,14 +25,20 @@
 
 // Controller types
 typedef enum {
-  // Present as an OEM WaveBird receiver
+  // Present on the SI bus as an OEM WaveBird receiver
   WP_CONT_TYPE_GC_WAVEBIRD,
 
-  // Present as an OEM wired GameCube controller
+  // Present on the SI bus as an OEM wired GameCube controller
   WP_CONT_TYPE_GC_WIRED,
 
-  // Present as a wired GameCube controller without rumble
+  // Present on the SI bus as a wired GameCube controller without rumble
   WP_CONT_TYPE_GC_WIRED_NOMOTOR,
+
+  // Present on the SI bus as an OEM N64 controller
+  WP_CONT_TYPE_N64,
+
+  // Present on the serial bus
+  WP_CONT_TYPE_SERIAL,
 } wp_controller_type_t;
 
 // Settings structure
@@ -55,6 +62,35 @@ typedef union {
 
   uint32_t _align; // Ensure 4-byte alignment
 } wp_settings_t;
+
+typedef struct {
+  union {
+    struct {
+      uint16_t left  : 1;
+      uint16_t right : 1;
+      uint16_t down  : 1;
+      uint16_t up    : 1;
+      uint16_t z     : 1;
+      uint16_t r     : 1;
+      uint16_t l     : 1;
+      uint16_t a     : 1;
+      uint16_t b     : 1;
+      uint16_t x     : 1;
+      uint16_t y     : 1;
+      uint16_t start : 1;
+    };
+    uint16_t raw;
+  } buttons;
+
+  uint8_t stick_x;
+  uint8_t stick_y;
+  uint8_t substick_x;
+  uint8_t substick_y;
+  uint8_t trigger_l;
+  uint8_t trigger_r;
+} __attribute__((packed)) wavebird_state_t;
+
+static wavebird_state_t wavebird_state = {0};
 
 // Default settings
 // - Present as an OEM WaveBird receiver, with wireless ID pinning enabled
@@ -101,19 +137,56 @@ void SysTick_Handler(void)
   millis++;
 }
 
-// Initialize (or reinitialize) as a controller on the SI bus
-static void initialize_controller(uint8_t controller_type)
+// Initialize (or reinitialize) as a controller on the SI bus or UART
+static void initialize_bus(uint8_t controller_type)
 {
-  if (controller_type == WP_CONT_TYPE_GC_WAVEBIRD) {
-    // Present as an OEM WaveBird receiver
-    si_device_gc_init(&si_device, SI_TYPE_GC | SI_GC_WIRELESS | SI_GC_NOMOTOR);
-    enable_si_command_handling = true;
-  } else if (controller_type == WP_CONT_TYPE_GC_WIRED_NOMOTOR) {
-    // Present as a wired GameCube controller without rumble
-    si_device_gc_init(&si_device, SI_TYPE_GC | SI_GC_STANDARD | SI_GC_NOMOTOR);
-  } else if (controller_type == WP_CONT_TYPE_GC_WIRED) {
-    // Present as an OEM wired GameCube controller
-    si_device_gc_init(&si_device, SI_TYPE_GC | SI_GC_STANDARD);
+  if (controller_type == WP_CONT_TYPE_SERIAL) {
+    // Initialize on the serial bus
+    serial_init(115200);
+  } else {
+    // Initialize on the SI bus
+    si_init(SI_DATA_PORT, SI_DATA_PIN, SI_MODE_DEVICE, 200000, 250000);
+
+    if (controller_type == WP_CONT_TYPE_GC_WAVEBIRD) {
+      // Present as an OEM WaveBird receiver
+      si_device_gc_init(&si_device, SI_TYPE_GC | SI_GC_WIRELESS | SI_GC_NOMOTOR);
+      enable_si_command_handling = true;
+    } else if (controller_type == WP_CONT_TYPE_GC_WIRED_NOMOTOR) {
+      // Present as a wired GameCube controller without rumble
+      si_device_gc_init(&si_device, SI_TYPE_GC | SI_GC_STANDARD | SI_GC_NOMOTOR);
+    } else if (controller_type == WP_CONT_TYPE_GC_WIRED) {
+      // Present as an OEM wired GameCube controller
+      si_device_gc_init(&si_device, SI_TYPE_GC | SI_GC_STANDARD);
+    }
+  }
+}
+
+static void process_bus_commands()
+{
+  if (settings.cont_type == WP_CONT_TYPE_SERIAL) {
+    // Process serial commands
+    while (USART_StatusGet(SERIAL_USART) & USART_STATUS_RXDATAV) {
+      uint8_t command = USART_Rx(SERIAL_USART);
+      if (command == 0x01) {
+        // TODO: Consider button packing
+        USART_Tx(SERIAL_USART, wavebird_state.buttons.raw & 0xFF);
+        USART_Tx(SERIAL_USART, (wavebird_state.buttons.raw >> 8) & 0xFF);
+        USART_Tx(SERIAL_USART, wavebird_state.stick_x);
+        USART_Tx(SERIAL_USART, wavebird_state.stick_y);
+        USART_Tx(SERIAL_USART, wavebird_state.substick_x);
+        USART_Tx(SERIAL_USART, wavebird_state.substick_y);
+        USART_Tx(SERIAL_USART, wavebird_state.trigger_l);
+        USART_Tx(SERIAL_USART, wavebird_state.trigger_r);
+      }
+    }
+  } else {
+    // Process SI commands
+    if (enable_si_command_handling)
+      si_command_process();
+
+    // Invalidate stale inputs
+    if (si_device.input_valid && (int32_t)(millis - input_valid_until) >= 0)
+      si_device_set_input_valid(&si_device, false);
   }
 }
 
@@ -128,7 +201,6 @@ static void handle_pair_button_press()
 static void handle_pair_button_hold()
 {
   DEBUG_PRINT("Rebooting into bootloader...\n\n");
-  DEBUG_FLUSH();
 
   bootloader_rebootAndInstall();
 }
@@ -152,7 +224,6 @@ static void handle_wavebird_packet(const uint8_t *packet)
   uint8_t message[WAVEBIRD_MESSAGE_BYTES];
   int rc = wavebird_packet_decode(message, packet);
   if (rc < 0) {
-    // DEBUG_PRINT("Failed to decode WaveBird packet: %d\n", rcode);
     packet_stats.decode_errors++;
     return;
   }
@@ -174,7 +245,7 @@ static void handle_wavebird_packet(const uint8_t *packet)
         si_device_gc_set_wireless_id(&si_device, wireless_id);
       }
     } else {
-      // Emulate wireless ID pinning for wired controllers
+      // Emulate wireless ID pinning for all other controller types
       static uint16_t first_seen_id = 0;
       if (first_seen_id == 0) {
         // Set the first seen ID
@@ -196,37 +267,47 @@ static void handle_wavebird_packet(const uint8_t *packet)
     // Handle input state packets
     //
 
-    // Clear the buttons in the SI input state
-    si_device.input.buttons.bytes[0] &= ~0x1F;
-    si_device.input.buttons.bytes[1] &= ~0x7F;
+    if (settings.cont_type == WP_CONT_TYPE_SERIAL) {
+      wavebird_state.buttons.raw = wavebird_input_state_get_buttons(message);
+      memcpy(&wavebird_state.stick_x, &message[4], 6);
+    } else {
+      // Clear the buttons in the SI input state
+      si_device.input.buttons.bytes[0] &= ~0x1F;
+      si_device.input.buttons.bytes[1] &= ~0x7F;
 
-    // Copy the buttons from the WaveBird message
-    si_device.input.buttons.bytes[0] |= (message[3] & 0x80) >> 7 | (message[2] & 0x0F) << 1;
-    si_device.input.buttons.bytes[1] |= (message[3] & 0x7F);
+      // Copy the buttons from the WaveBird message
+      si_device.input.buttons.bytes[0] |= (message[3] & 0x80) >> 7 | (message[2] & 0x0F) << 1;
+      si_device.input.buttons.bytes[1] |= (message[3] & 0x7F);
 
-    // Copy the stick, substick, and trigger values
-    memcpy(&si_device.input.stick_x, &message[4], 6);
+      // Copy the stick, substick, and trigger values
+      memcpy(&si_device.input.stick_x, &message[4], 6);
 
-    // We have a good input state, enable SI command handling if it was disabled
-    enable_si_command_handling = true;
+      // We have a good input state, enable SI command handling if it was disabled
+      enable_si_command_handling = true;
 
-    // Set the input state as valid
-    input_valid_until = millis + INPUT_VALID_MS;
-    si_device_set_input_valid(&si_device, true);
+      // Set the input state as valid
+      input_valid_until = millis + INPUT_VALID_MS;
+      si_device_set_input_valid(&si_device, true);
+    }
+
   } else {
     //
     // Handle origin packets
     //
 
-    // Copy the origin values from the packet
-    uint8_t new_origin[] = {
-        wavebird_origin_get_stick_x(message),      wavebird_origin_get_stick_y(message),
-        wavebird_origin_get_substick_x(message),   wavebird_origin_get_substick_y(message),
-        wavebird_origin_get_trigger_left(message), wavebird_origin_get_trigger_right(message),
-    };
+    if (settings.cont_type == WP_CONT_TYPE_SERIAL) {
+      // TODO
+    } else {
+      // Copy the origin values from the packet
+      uint8_t new_origin[] = {
+          wavebird_origin_get_stick_x(message),      wavebird_origin_get_stick_y(message),
+          wavebird_origin_get_substick_x(message),   wavebird_origin_get_substick_y(message),
+          wavebird_origin_get_trigger_left(message), wavebird_origin_get_trigger_right(message),
+      };
 
-    // Update the origin state in the SI device
-    si_device_gc_set_wireless_origin(&si_device, new_origin);
+      // Update the origin state in the SI device
+      si_device_gc_set_wireless_origin(&si_device, new_origin);
+    }
   }
 }
 
@@ -272,7 +353,7 @@ static void handle_pairing_finished(uint8_t status, uint8_t channel)
       led_effect_blink(status_led, 1000, 1);
 
     // Reset the controller
-    initialize_controller(settings.cont_type);
+    initialize_bus(settings.cont_type);
   } else if (status == WB_RADIO_PAIRING_TIMEOUT) {
     DEBUG_PRINT("Pairing timed out\n");
 
@@ -338,11 +419,11 @@ static void gpio_init(void)
   // Enable GPIO clocks
   CMU_ClockEnable(cmuClock_GPIO, true);
 
-  // Make SWDIO available as a GPIO, if necessary
-  if (SI_DATA_PORT == GPIO_SWDIO_PORT && SI_DATA_PIN == GPIO_SWDIO_PIN) {
-    DEBUG_PRINT("[WARNING] SI is using SWDIO as GPIO, disabling SWD\n");
-    GPIO_DbgSWDIOEnable(false);
-  }
+  // Make SWDIO, SWDCLK available as GPIOs
+  // WARNING: This disables SWD debugging and flashing while the firmware is running,
+  //          you must use the bootloader to flash new firmware.
+  GPIO_DbgSWDIOEnable(false);
+  GPIO_DbgSWDClkEnable(false);
 
   // Initialize status LED, if present
 #if HAS_STATUS_LED
@@ -376,9 +457,6 @@ int main(void)
   // Initialize the system
   system_init();
 
-  // Initialize the debug console
-  serial_init(115200);
-
   // Initialize the GPIOs
   gpio_init();
 
@@ -403,11 +481,9 @@ int main(void)
     wavebird_radio_set_channel(settings.chan);
   }
 
-  // Initialize the SI bus
-  si_init(SI_DATA_PORT, SI_DATA_PIN, SI_MODE_DEVICE, 200000, 250000);
-
   // Register to handle controller SI commands
-  initialize_controller(settings.cont_type);
+  settings.cont_type = WP_CONT_TYPE_SERIAL; // TODO: Remove
+  initialize_bus(settings.cont_type);
 
   // Lets-a-go!
   DEBUG_PRINT("WavePhoenix receiver ready!\n");
@@ -418,14 +494,10 @@ int main(void)
                                                                                            : "Wired (no motor)");
   DEBUG_PRINT("\n");
 
-  // Wait for the SI bus to be idle before starting the main loop
-  si_await_bus_idle();
-
   // Main loop
   while (1) {
-    // Check if we need to initiate the next SI transfer
-    if (enable_si_command_handling)
-      si_command_process();
+    // Check for new messages on the wired (SI or serial) bus
+    process_bus_commands();
 
     // Check for new wavebird packets
     wavebird_radio_process();
@@ -433,9 +505,5 @@ int main(void)
     // Update status LED
     if (status_led)
       led_effect_update(status_led, millis);
-
-    // Invalidate stale inputs
-    if (si_device.input_valid && (int32_t)(millis - input_valid_until) >= 0)
-      si_device_set_input_valid(&si_device, false);
   }
 }

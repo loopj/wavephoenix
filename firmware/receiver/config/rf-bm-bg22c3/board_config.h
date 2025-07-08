@@ -4,18 +4,18 @@
 #define HFXO_FREQ         38400000
 #define HFXO_CTUNE        72
 
-// GPIO config
+// SI config
 #define SI_DATA_PORT      gpioPortA
 #define SI_DATA_PIN       2
 
-// Serial debug config
+// Serial config
 #define SERIAL_USART      USART1
 #define SERIAL_USART_CLK  cmuClock_USART1
 #define SERIAL_USART_IDX  1
 #define SERIAL_RXPORT     gpioPortA
-#define SERIAL_RXPIN      6
+#define SERIAL_RXPIN      2
 #define SERIAL_TXPORT     gpioPortA
-#define SERIAL_TXPIN      5
+#define SERIAL_TXPIN      1
 
 // Pair button
 #define HAS_PAIR_BTN      1

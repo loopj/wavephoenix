@@ -1,6 +1,7 @@
 #include "si/commands.h"
 
 enum {
+  COMMAND_STATE_UNKNOWN = 0,
   COMMAND_STATE_IDLE,
   COMMAND_STATE_RX,
   COMMAND_STATE_TX,
@@ -13,7 +14,7 @@ struct command_entry {
   void *context;
 };
 
-static uint8_t command_state                   = COMMAND_STATE_IDLE;
+static uint8_t command_state                   = COMMAND_STATE_UNKNOWN;
 static struct command_entry command_table[256] = {0};
 static uint8_t command_buffer[SI_BLOCK_SIZE];
 static bool auto_tx_rx_transition = true;
@@ -40,7 +41,7 @@ si_command_handler_fn si_command_get_handler(uint8_t command)
 
 void si_command_process()
 {
-  if (command_state == COMMAND_STATE_ERROR) {
+  if (command_state == COMMAND_STATE_UNKNOWN || command_state == COMMAND_STATE_ERROR) {
     si_await_bus_idle();
     command_state = COMMAND_STATE_IDLE;
   }
