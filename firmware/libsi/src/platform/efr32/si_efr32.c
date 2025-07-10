@@ -194,7 +194,7 @@ static void init_rx(uint8_t port, uint8_t pin, uint32_t freq)
       (port << _GPIO_TIMER_CC0ROUTE_PORT_SHIFT) | (pin << _GPIO_TIMER_CC0ROUTE_PIN_SHIFT);
 
   // Set LDMA interrupts as high priority, since we need to reply immediately on completed RX
-  NVIC_SetPriority(LDMA_IRQn, CORE_INTERRUPT_HIGHEST_PRIORITY);
+  NVIC_SetPriority(LDMA_IRQn, 0);
 }
 
 // Initialize for SI data transmission
