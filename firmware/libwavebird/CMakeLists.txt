@@ -20,7 +20,7 @@ if(CMAKE_CROSSCOMPILING)
       message(FATAL_ERROR "Only EFR32 series SoCs are currently supported.")
     endif()
 
-    if(NOT CONFIG_SOC_GECKO_CUSTOM_RADIO_PHY)
+    if(NOT CONFIG_SOC_GECKO_USE_RAIL)
       message(FATAL_ERROR "Custom radio PHY is required for EFR32 platforms, set CONFIG_SOC_GECKO_CUSTOM_RADIO_PHY in prj.conf.")
     endif()
 
