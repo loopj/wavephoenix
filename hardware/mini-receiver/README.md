@@ -153,7 +153,11 @@ The pinout of the JST-SH connector is as follows:
 
 ### OpenOCD
 
-To flash the firmware, you'll need to install a fork of [OpenOCD](https://openocd.org) that adds support for EFR32 Series 2 SoCs. The fork can be found [here](https://github.com/loopj/openocd-efm32s2) with pre-built binaries for Windows available in the [GitHub releases tab](https://github.com/loopj/openocd-efm32s2/releases/latest).
+To flash the firmware, you'll need to install Arduino's fork of OpenOCD, which adds support for EFR32 Series 2 SoCs.
+
+Prebuilt binaries are available for [Windows](https://downloads.arduino.cc/tools/openocd-0.12.0-arduino1-static-i686-w64-mingw32.tar.bz2), [macOS](https://downloads.arduino.cc/tools/openocd-0.12.0-arduino1-static-x86_64-apple-darwin19.tar.bz2), and [Linux](https://downloads.arduino.cc/tools/openocd-0.12.0-arduino1-static-x86_64-ubuntu16.04-linux-gnu.tar.bz2).
+
+The source for this fork is available on [GitHub here](https://github.com/facchinm/OpenOCD/tree/arduino-0.12.0-rtx5).
 
 ### Flashing
 
