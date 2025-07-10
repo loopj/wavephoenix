@@ -50,7 +50,10 @@ Alternatively, you can use the [Simplicity Connect mobile app](https://www.silab
 
 If you have a generic SWD debugger, you can use OpenOCD to flash the firmware. The [Raspberry Pi Debug Probe](https://www.raspberrypi.com/products/debug-probe/) is a good, affordable option. If you happen to have a Raspberry Pi Pico, you can install the [debugprobe firmware](https://github.com/raspberrypi/debugprobe) on it to turn it into an SWD debug probe!
 
-- Download and install [OpenOCD pre-patched with EFM32 Series 2 support](https://github.com/loopj/openocd-efm32s2)
+- Download and install [Arduino's fork of OpenOCD](https://github.com/facchinm/OpenOCD/tree/arduino-0.12.0-rtx5), which adds support for EFR32 Series 2 SoCs:
+  - [Windows](https://downloads.arduino.cc/tools/openocd-0.12.0-arduino1-static-i686-w64-mingw32.tar.bz2)
+  - [macOS](https://downloads.arduino.cc/tools/openocd-0.12.0-arduino1-static-x86_64-apple-darwin19.tar.bz2)
+  - [Linux](https://downloads.arduino.cc/tools/openocd-0.12.0-arduino1-static-x86_64-ubuntu16.04-linux-gnu.tar.bz2)
 - Connect GND, SWDIO, SWCLK, and 3V3 between the debug probe and the SoC
 - Flash the firmware:
 
