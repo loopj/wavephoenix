@@ -39,7 +39,7 @@ if(CMAKE_CROSSCOMPILING)
   endif()
 
   # Add the platform-specific source files
-  target_sources(si PRIVATE "src/platform/efr32/si_efr32.c")
+  target_sources(si PRIVATE "src/platform/efr32/si_efr32_emlib.c")
 endif()
 
 # Add the test target
