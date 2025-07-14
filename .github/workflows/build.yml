@@ -48,8 +48,8 @@ jobs:
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
-          distribution: "temurin"
-          java-version: "17"
+          distribution: "corretto"
+          java-version: "21"
 
       - name: Cache ARM GNU Toolchain
         id: cache-arm-toolchain
