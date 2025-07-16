@@ -27,11 +27,11 @@
 // Number of chips per bit for the line coding
 #define CHIPS_PER_BIT           4
 
-// Line coding (inverted, since we're inverting the USART output)
-#define BIT_0                   0b1110
-#define BIT_1                   0b1000
-#define DEVICE_STOP             0b1100
-#define HOST_STOP               0b1000
+// Line coding
+#define BIT_0                   0b0001
+#define BIT_1                   0b0111
+#define DEVICE_STOP             0b00111111
+#define HOST_STOP               0b01111111
 
 // SI bus idle period (in microseconds)
 #define BUS_IDLE_US             100
@@ -124,7 +124,7 @@ void si_write_bytes(const uint8_t *bytes, uint8_t length, si_callback_fn callbac
     buf_ptr = encode_byte(buf_ptr, bytes[i]);
 
   // Add the stop bit
-  buf_ptr[0] = (si_mode == SI_MODE_HOST ? HOST_STOP : DEVICE_STOP) << 4;
+  *buf_ptr++ = (si_mode == SI_MODE_HOST ? HOST_STOP : DEVICE_STOP);
 
   // Set the transfer count (xferCnt expects the number of transfer minus one)
   ldma_tx_descriptors[0].xfer.xferCnt = (length * CHIPS_PER_BIT + 1) - 1;
@@ -230,8 +230,8 @@ static void init_tx(uint8_t port, uint8_t pin, uint32_t freq)
   usartConfig.msbf                   = true;
   USART_InitSync(SI_TX_USART, &usartConfig);
 
-  // Invert the TX output so we have an active-low signal
-  SI_TX_USART->CTRL_SET = USART_CTRL_TXINV;
+  // Tri-state the USART TX output
+  SI_TX_USART->CTRL_SET = USART_CTRL_AUTOTRI;
 
   // Route USART output to the SI GPIO
   GPIO->USARTROUTE[SI_TX_USART_IDX].ROUTEEN = GPIO_USART_ROUTEEN_TXPEN;
