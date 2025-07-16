@@ -27,11 +27,11 @@
 // Number of chips per bit for the line coding
 #define CHIPS_PER_BIT           4
 
-// Line coding (inverted, since we're inverting the USART output)
-#define BIT_0                   0b1110
-#define BIT_1                   0b1000
-#define DEVICE_STOP             0b1100
-#define HOST_STOP               0b1000
+// Line coding
+#define BIT_0                   0b0001
+#define BIT_1                   0b0111
+#define DEVICE_STOP             0b00111111
+#define HOST_STOP               0b01111111
 
 // SI bus idle period (in microseconds)
 #define BUS_IDLE_US             100
@@ -64,6 +64,19 @@ static struct {
   si_callback_fn callback;
 } si_xfer;
 
+// RX LDMA configuration
+static LDMA_TransferCfg_t ldma_rx_config       = LDMA_TRANSFER_CFG_PERIPHERAL(SI_RX_LDMA_PERIPHERAL);
+static LDMA_Descriptor_t ldma_rx_descriptors[] = {
+    LDMA_DESCRIPTOR_LINKREL_P2M_WORD(&SI_RX_TIMER->CC[0].ICF, &rx_edge_timings[0], RX_BUFFER_SIZE, 1),
+    LDMA_DESCRIPTOR_LINKREL_P2M_WORD(&SI_RX_TIMER->CC[0].ICF, &rx_edge_timings[1], RX_BUFFER_SIZE, -1),
+};
+
+// TX LDMA configuration
+static LDMA_TransferCfg_t ldma_tx_config       = LDMA_TRANSFER_CFG_PERIPHERAL(SI_TX_LDMA_PERIPHERAL);
+static LDMA_Descriptor_t ldma_tx_descriptors[] = {
+    LDMA_DESCRIPTOR_SINGLE_M2P_BYTE(tx_buffer, &(SI_TX_USART->TXDATA), 1),
+};
+
 static void init_rx(uint8_t port, uint8_t pin, uint32_t freq);
 static void init_tx(uint8_t port, uint8_t pin, uint32_t freq);
 static uint8_t *encode_byte(uint8_t *dest, uint8_t src);
@@ -83,6 +96,10 @@ void si_init(uint8_t port, uint8_t pin, uint8_t mode, uint32_t rx_freq, uint32_t
 
   // Set the SI data line as open-drain output
   GPIO_PinModeSet(port, pin, gpioModeWiredAnd, 1);
+
+  // Adjust size of rx transfer size to half-word
+  ldma_rx_descriptors[0].xfer.size = ldmaCtrlSizeHalf;
+  ldma_rx_descriptors[1].xfer.size = ldmaCtrlSizeHalf;
 
   // Initialize SI RX and TX
   init_rx(port, pin, rx_freq);
@@ -107,11 +124,13 @@ void si_write_bytes(const uint8_t *bytes, uint8_t length, si_callback_fn callbac
     buf_ptr = encode_byte(buf_ptr, bytes[i]);
 
   // Add the stop bit
-  buf_ptr[0] = (si_mode == SI_MODE_HOST ? HOST_STOP : DEVICE_STOP) << 4;
+  *buf_ptr++ = (si_mode == SI_MODE_HOST ? HOST_STOP : DEVICE_STOP);
+
+  // Set the transfer count (xferCnt expects the number of transfer minus one)
+  ldma_tx_descriptors[0].xfer.xferCnt = (length * CHIPS_PER_BIT + 1) - 1;
 
   // Start the DMA transfer
-  DMADRV_MemoryPeripheral(tx_dma_channel, SI_TX_LDMA_PERIPHERAL, (void *)&(SI_TX_USART->TXDATA), tx_buffer, true,
-                          length * CHIPS_PER_BIT + 1, dmadrvDataSize1, NULL, NULL);
+  DMADRV_LdmaStartTransfer(tx_dma_channel, &ldma_tx_config, ldma_tx_descriptors, NULL, NULL);
 }
 
 void si_read_bytes(uint8_t *buffer, uint8_t length, si_callback_fn callback)
@@ -129,8 +148,7 @@ void si_read_bytes(uint8_t *buffer, uint8_t length, si_callback_fn callback)
   TIMER_Enable(SI_RX_TIMER, true);
 
   // Start the LDMA transfer
-  DMADRV_PeripheralMemoryPingPong(rx_dma_channel, SI_RX_LDMA_PERIPHERAL, rx_edge_timings[0], rx_edge_timings[1],
-                                  (void *)&(SI_RX_TIMER->CC[0].ICF), true, 16, dmadrvDataSize2, ldma_callback_rx, NULL);
+  DMADRV_LdmaStartTransfer(rx_dma_channel, &ldma_rx_config, ldma_rx_descriptors, ldma_callback_rx, NULL);
 }
 
 void si_read_command(uint8_t *buffer, si_callback_fn callback)
@@ -212,8 +230,8 @@ static void init_tx(uint8_t port, uint8_t pin, uint32_t freq)
   usartConfig.msbf                   = true;
   USART_InitSync(SI_TX_USART, &usartConfig);
 
-  // Invert the TX output so we have an active-low signal
-  SI_TX_USART->CTRL_SET = USART_CTRL_TXINV;
+  // Tri-state the USART TX output
+  SI_TX_USART->CTRL_SET = USART_CTRL_AUTOTRI;
 
   // Route USART output to the SI GPIO
   GPIO->USARTROUTE[SI_TX_USART_IDX].ROUTEEN = GPIO_USART_ROUTEEN_TXPEN;
