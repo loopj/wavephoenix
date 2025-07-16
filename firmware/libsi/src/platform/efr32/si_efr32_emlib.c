@@ -17,21 +17,10 @@
 #define SI_RX_LDMA_PERIPHERAL   ldmaPeripheralSignal_TIMER0_CC0
 
 // TX peripheral configuration
-#define SI_TX_USART             USART0
-#define SI_TX_USART_IDX         0
-#define SI_TX_USART_CLK         cmuClock_USART0
-#define SI_TX_USART_IRQn        USART0_TX_IRQn
-#define SI_TX_USART_IRQHandler  USART0_TX_IRQHandler
-#define SI_TX_LDMA_PERIPHERAL   ldmaPeripheralSignal_USART0_TXBL
-
-// Number of chips per bit for the line coding
-#define CHIPS_PER_BIT           4
-
-// Line coding
-#define BIT_0                   0b0001
-#define BIT_1                   0b0111
-#define DEVICE_STOP             0b00111111
-#define HOST_STOP               0b01111111
+#define SI_TX_TIMER             TIMER1
+#define SI_TX_TIMER_IDX         1
+#define SI_TX_TIMER_CLK         cmuClock_TIMER1
+#define SI_TX_LDMA_PERIPHERAL   ldmaPeripheralSignal_TIMER1_UFOF
 
 // SI bus idle period (in microseconds)
 #define BUS_IDLE_US             100
@@ -39,8 +28,8 @@
 // RX buffer size (16 edges per byte)
 #define RX_BUFFER_SIZE          16
 
-// TX buffer size (4 chips per bit, extra byte for stop bit)
-#define TX_BUFFER_SIZE          (SI_BLOCK_SIZE * CHIPS_PER_BIT + 1)
+// TX buffer size (One word per bit, 8 bits per byte)
+#define TX_BUFFER_SIZE          SI_BLOCK_SIZE * 8
 
 // SI configuration
 static uint8_t si_data_port;
@@ -54,8 +43,14 @@ static uint16_t rx_bus_idle_period;
 static unsigned int rx_dma_channel;
 
 // TX State
-static uint8_t tx_buffer[TX_BUFFER_SIZE];
+static uint16_t tx_buffer[TX_BUFFER_SIZE];
+static uint16_t tx_pulse_period;
+static uint16_t tx_pulse_period_inv_0;
+static uint16_t tx_pulse_period_inv_1;
+static uint16_t tx_pulse_period_inv_stop;
 static unsigned int tx_dma_channel;
+
+static const uint16_t dummy_period = 0;
 
 // Transfer state
 static struct {
@@ -72,16 +67,29 @@ static LDMA_Descriptor_t ldma_rx_descriptors[] = {
 };
 
 // TX LDMA configuration
-static LDMA_TransferCfg_t ldma_tx_config       = LDMA_TRANSFER_CFG_PERIPHERAL(SI_TX_LDMA_PERIPHERAL);
+static LDMA_TransferCfg_t ldma_tx_config       = LDMA_TRANSFER_CFG_PERIPHERAL(ldmaPeripheralSignal_TIMER1_CC0);
 static LDMA_Descriptor_t ldma_tx_descriptors[] = {
-    LDMA_DESCRIPTOR_SINGLE_M2P_BYTE(tx_buffer, &(SI_TX_USART->TXDATA), 1),
+    // Shift out the data pulses
+    LDMA_DESCRIPTOR_LINKREL_M2P_BYTE(tx_buffer + 1, &(TIMER1->CC[0].OCB), 1, 1),
+
+    // Shift out the stop bit
+    LDMA_DESCRIPTOR_LINKREL_M2P_BYTE(&tx_pulse_period_inv_stop, &(TIMER1->CC[0].OCB), 1, 1),
+
+    // Shift out a dummy period
+    LDMA_DESCRIPTOR_LINKREL_M2P_BYTE(&dummy_period, &(TIMER1->CC[0].OCB), 1, 1),
+
+    // Stop the timer
+    LDMA_DESCRIPTOR_LINKREL_WRITE(TIMER_CMD_STOP, &(TIMER1->CMD), 1),
+
+    // Reset the timer counter
+    LDMA_DESCRIPTOR_SINGLE_WRITE(0, &(TIMER1->CNT)),
 };
 
 static void init_rx(uint8_t port, uint8_t pin, uint32_t freq);
-static void init_tx(uint8_t port, uint8_t pin, uint32_t freq);
-static uint8_t *encode_byte(uint8_t *dest, uint8_t src);
+static void init_tx(uint8_t port, uint8_t pin, uint32_t freq, uint8_t mode);
 static void decode_edge_timings(uint8_t *dest, uint16_t *src);
 static bool ldma_callback_rx(unsigned int chan, unsigned int iteration, void *user_data);
+static bool ldma_callback_tx(unsigned int chan, unsigned int iteration, void *user_data);
 
 void si_init(uint8_t port, uint8_t pin, uint8_t mode, uint32_t rx_freq, uint32_t tx_freq)
 {
@@ -97,13 +105,9 @@ void si_init(uint8_t port, uint8_t pin, uint8_t mode, uint32_t rx_freq, uint32_t
   // Set the SI data line as open-drain output
   GPIO_PinModeSet(port, pin, gpioModeWiredAnd, 1);
 
-  // Adjust size of rx transfer size to half-word
-  ldma_rx_descriptors[0].xfer.size = ldmaCtrlSizeHalf;
-  ldma_rx_descriptors[1].xfer.size = ldmaCtrlSizeHalf;
-
   // Initialize SI RX and TX
   init_rx(port, pin, rx_freq);
-  init_tx(port, pin, tx_freq);
+  init_tx(port, pin, tx_freq, mode);
 
   // Save the SI configuration
   si_data_port = port;
@@ -114,23 +118,31 @@ void si_init(uint8_t port, uint8_t pin, uint8_t mode, uint32_t rx_freq, uint32_t
 void si_write_bytes(const uint8_t *bytes, uint8_t length, si_callback_fn callback)
 {
   // Save the transfer state
-  si_xfer.data     = (uint8_t *)bytes;
-  si_xfer.length   = length;
   si_xfer.callback = callback;
 
   // Convert the bytes to appropriate line coding and add to the buffer
-  uint8_t *buf_ptr = tx_buffer;
-  for (int i = 0; i < length; i++)
-    buf_ptr = encode_byte(buf_ptr, bytes[i]);
-
-  // Add the stop bit
-  *buf_ptr++ = (si_mode == SI_MODE_HOST ? HOST_STOP : DEVICE_STOP);
+  uint16_t *buf_ptr = tx_buffer;
+  for (int i = 0; i < length; i++) {
+    uint8_t byte = bytes[i];
+    *buf_ptr++   = (byte & 0x80) ? tx_pulse_period_inv_1 : tx_pulse_period_inv_0;
+    *buf_ptr++   = (byte & 0x40) ? tx_pulse_period_inv_1 : tx_pulse_period_inv_0;
+    *buf_ptr++   = (byte & 0x20) ? tx_pulse_period_inv_1 : tx_pulse_period_inv_0;
+    *buf_ptr++   = (byte & 0x10) ? tx_pulse_period_inv_1 : tx_pulse_period_inv_0;
+    *buf_ptr++   = (byte & 0x08) ? tx_pulse_period_inv_1 : tx_pulse_period_inv_0;
+    *buf_ptr++   = (byte & 0x04) ? tx_pulse_period_inv_1 : tx_pulse_period_inv_0;
+    *buf_ptr++   = (byte & 0x02) ? tx_pulse_period_inv_1 : tx_pulse_period_inv_0;
+    *buf_ptr++   = (byte & 0x01) ? tx_pulse_period_inv_1 : tx_pulse_period_inv_0;
+  }
 
   // Set the transfer count (xferCnt expects the number of transfer minus one)
-  ldma_tx_descriptors[0].xfer.xferCnt = (length * CHIPS_PER_BIT + 1) - 1;
+  ldma_tx_descriptors[0].xfer.xferCnt = (length * 8 - 1) - 1;
+
+  // Pre-load the TX timer with the first pulse period, and start the timer
+  SI_TX_TIMER->CC[0].OCB = tx_buffer[0];
+  SI_TX_TIMER->CMD       = TIMER_CMD_START;
 
   // Start the DMA transfer
-  DMADRV_LdmaStartTransfer(tx_dma_channel, &ldma_tx_config, ldma_tx_descriptors, NULL, NULL);
+  DMADRV_LdmaStartTransfer(tx_dma_channel, &ldma_tx_config, ldma_tx_descriptors, ldma_callback_tx, NULL);
 }
 
 void si_read_bytes(uint8_t *buffer, uint8_t length, si_callback_fn callback)
@@ -192,6 +204,10 @@ static void init_rx(uint8_t port, uint8_t pin, uint32_t freq)
   rx_pulse_period_half   = (rx_timer_freq / freq) / 2;
   rx_bus_idle_period     = rx_timer_freq / 1000000UL * BUS_IDLE_US;
 
+  // Adjust size of rx transfer size to half-word
+  ldma_rx_descriptors[0].xfer.size = ldmaCtrlSizeHalf;
+  ldma_rx_descriptors[1].xfer.size = ldmaCtrlSizeHalf;
+
   // Enable clocks
   CMU_ClockEnable(SI_RX_TIMER_CLK, true);
 
@@ -216,31 +232,52 @@ static void init_rx(uint8_t port, uint8_t pin, uint32_t freq)
 }
 
 // Initialize for SI data transmission
-static void init_tx(uint8_t port, uint8_t pin, uint32_t freq)
+static void init_tx(uint8_t port, uint8_t pin, uint32_t freq, uint8_t mode)
 {
   // Allocate a DMA channel
   DMADRV_AllocateChannel(&tx_dma_channel, NULL);
 
+  // Set up the timings for tx pulses
+  uint32_t tx_timer_freq = CMU_ClockFreqGet(SI_TX_TIMER_CLK);
+  tx_pulse_period        = (tx_timer_freq / freq);
+  tx_pulse_period_inv_0  = tx_pulse_period * 3 / 4;
+  tx_pulse_period_inv_1  = tx_pulse_period * 1 / 4;
+  if (mode == SI_MODE_HOST) {
+    tx_pulse_period_inv_stop = tx_pulse_period_inv_1;
+  } else {
+    tx_pulse_period_inv_stop = tx_pulse_period * 2 / 4;
+  }
+
+  // Adjust size of tx transfer size to half-word
+  ldma_tx_descriptors[0].xfer.size    = ldmaCtrlSizeHalf;
+  ldma_tx_descriptors[1].xfer.size    = ldmaCtrlSizeHalf;
+  ldma_tx_descriptors[2].xfer.size    = ldmaCtrlSizeHalf;
+  ldma_tx_descriptors[0].xfer.doneIfs = false;
+  ldma_tx_descriptors[1].xfer.doneIfs = false;
+  ldma_tx_descriptors[2].xfer.doneIfs = false;
+  ldma_tx_descriptors[3].xfer.doneIfs = false;
+  ldma_tx_descriptors[4].xfer.doneIfs = true;
+
   // Enable clocks
-  CMU_ClockEnable(SI_TX_USART_CLK, true);
+  CMU_ClockEnable(SI_TX_TIMER_CLK, true);
 
-  // Initialize USART
-  USART_InitSync_TypeDef usartConfig = USART_INITSYNC_DEFAULT;
-  usartConfig.baudrate               = freq * CHIPS_PER_BIT;
-  usartConfig.msbf                   = true;
-  USART_InitSync(SI_TX_USART, &usartConfig);
+  // Initialize TIMER
+  TIMER_Init_TypeDef timerInit = TIMER_INIT_DEFAULT;
+  timerInit.enable             = false;
+  timerInit.dmaClrAct          = true;
+  TIMER_Init(SI_TX_TIMER, &timerInit);
+  TIMER_TopSet(SI_TX_TIMER, tx_pulse_period - 1);
 
-  // Tri-state the USART TX output
-  SI_TX_USART->CTRL_SET = USART_CTRL_AUTOTRI;
+  // Configure CC0 for PWM output
+  TIMER_InitCC_TypeDef timerCCInit = TIMER_INITCC_DEFAULT;
+  timerCCInit.mode                 = timerCCModePWM;
+  timerCCInit.outInvert            = true;
+  TIMER_InitCC(SI_TX_TIMER, 0, &timerCCInit);
 
-  // Route USART output to the SI GPIO
-  GPIO->USARTROUTE[SI_TX_USART_IDX].ROUTEEN = GPIO_USART_ROUTEEN_TXPEN;
-  GPIO->USARTROUTE[SI_TX_USART_IDX].TXROUTE =
-      (port << _GPIO_USART_TXROUTE_PORT_SHIFT) | (pin << _GPIO_USART_TXROUTE_PIN_SHIFT);
-
-  // Enable USART TX complete interrupts
-  USART_IntEnable(SI_TX_USART, USART_IF_TXC);
-  NVIC_EnableIRQ(SI_TX_USART_IRQn);
+  // Route TIMER output to the SI GPIO
+  GPIO->TIMERROUTE[SI_TX_TIMER_IDX].ROUTEEN = GPIO_TIMER_ROUTEEN_CC0PEN;
+  GPIO->TIMERROUTE[SI_TX_TIMER_IDX].CC0ROUTE =
+      (port << _GPIO_TIMER_CC0ROUTE_PORT_SHIFT) | (pin << _GPIO_TIMER_CC0ROUTE_PIN_SHIFT);
 }
 
 // Process received SI edge timings into a byte
@@ -263,28 +300,6 @@ static void decode_edge_timings(uint8_t *dest, uint16_t *src)
   }
 }
 
-// Convert a byte to the appropriate line coding for transmission
-static uint8_t *encode_byte(uint8_t *dest, uint8_t src)
-{
-  uint8_t bit_7 = (src & 0x80) ? BIT_1 << 4 : BIT_0 << 4;
-  uint8_t bit_6 = (src & 0x40) ? BIT_1 : BIT_0;
-  *dest++       = bit_7 | bit_6;
-
-  uint8_t bit_5 = (src & 0x20) ? BIT_1 << 4 : BIT_0 << 4;
-  uint8_t bit_4 = (src & 0x10) ? BIT_1 : BIT_0;
-  *dest++       = bit_5 | bit_4;
-
-  uint8_t bit_3 = (src & 0x08) ? BIT_1 << 4 : BIT_0 << 4;
-  uint8_t bit_2 = (src & 0x04) ? BIT_1 : BIT_0;
-  *dest++       = bit_3 | bit_2;
-
-  uint8_t bit_1 = (src & 0x02) ? BIT_1 << 4 : BIT_0 << 4;
-  uint8_t bit_0 = (src & 0x01) ? BIT_1 : BIT_0;
-  *dest++       = bit_1 | bit_0;
-
-  return dest;
-}
-
 // LDMA callback for RX data capture
 static bool ldma_callback_rx(unsigned int chan, unsigned int iteration, void *user_data)
 {
@@ -301,7 +316,7 @@ static bool ldma_callback_rx(unsigned int chan, unsigned int iteration, void *us
     // Unknown command, stop the transfer
     if (si_xfer.length == 0) {
       // Don't clock in any more data
-      TIMER_Enable(SI_RX_TIMER, false);
+      SI_RX_TIMER->CMD = TIMER_CMD_STOP;
 
       // Call the transfer callback if one is set
       if (si_xfer.callback)
@@ -329,14 +344,11 @@ static bool ldma_callback_rx(unsigned int chan, unsigned int iteration, void *us
   return true;
 }
 
-// USART TX complete interrupt handler
-void SI_TX_USART_IRQHandler()
+static bool ldma_callback_tx(unsigned int chan, unsigned int iteration, void *user_data)
 {
-  // Clear the interrupt flags
-  uint32_t flags = USART_IntGet(SI_TX_USART);
-  USART_IntClear(SI_TX_USART, flags);
-
   // Call the transfer callback if one is set
   if (si_xfer.callback)
     si_xfer.callback(0);
+
+  return false;
 }
