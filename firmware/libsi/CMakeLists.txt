@@ -22,6 +22,13 @@ if(CMAKE_CROSSCOMPILING)
 
     # Pull in the Zephyr interface library
     target_link_libraries(si PUBLIC zephyr_interface)
+
+    # Pull in additional EMLIB sources required for libsi
+    zephyr_library_sources(
+      ${ZEPHYR_HAL_SILABS_MODULE_DIR}/simplicity_sdk/platform/emlib/src/em_timer.c
+      ${ZEPHYR_HAL_SILABS_MODULE_DIR}/simplicity_sdk/platform/emlib/src/em_ldma.c
+      ${ZEPHYR_HAL_SILABS_MODULE_DIR}/simplicity_sdk/platform/emdrv/dmadrv/src/dmadrv.c
+    )
   else()
     # Building for EFR32 using gecko-sdk-cmake
     if(NOT GeckoSDK_FOUND)
