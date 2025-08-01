@@ -394,7 +394,7 @@ int main(void)
   wavebird_radio_set_pairing_finished_callback(handle_pairing_finished);
   wavebird_radio_init(handle_wavebird_packet, handle_wavebird_error);
 
-  // Se the initial radio channel
+  // Set the initial radio channel
   if (channel_wheel) {
     // Set the initial radio channel from the channel wheel
     wavebird_radio_set_channel(channel_wheel_get_value(channel_wheel));
@@ -402,6 +402,9 @@ int main(void)
     // Set the initial radio channel from NVM (defaulting to 1)
     wavebird_radio_set_channel(settings.chan);
   }
+
+  // Enable the WaveBird radio
+  wavebird_radio_enable();
 
   // Initialize the SI bus
   si_init(SI_DATA_PORT, SI_DATA_PIN, SI_MODE_DEVICE, 200000, 250000);

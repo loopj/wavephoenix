@@ -53,7 +53,7 @@ enum {
 // Pairing callback states
 enum {
   WB_RADIO_PAIRING_SUCCESS,
-  WB_RADIO_PAIRING_CANCELLED,
+  WB_RADIO_PAIRING_CANCELED,
   WB_RADIO_PAIRING_TIMEOUT,
 };
 
@@ -79,6 +79,20 @@ typedef void (*wavebird_radio_pairing_finished_fn_t)(uint8_t status, uint8_t cha
  * @return 0 on success, negative error code on failure
  */
 int wavebird_radio_init(wavebird_radio_packet_fn_t packet_fn, wavebird_radio_error_fn_t error_fn);
+
+/**
+ * Enable the radio.
+ *
+ * @return 0 on success, negative error code on failure
+ */
+int wavebird_radio_enable(void);
+
+/**
+ * Disable the radio.
+ *
+ * @return 0 on success, negative error code on failure
+ */
+int wavebird_radio_disable(void);
 
 /**
  * Get the current radio channel.
