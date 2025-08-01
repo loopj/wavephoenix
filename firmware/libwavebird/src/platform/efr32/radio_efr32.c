@@ -39,7 +39,7 @@ static wavebird_radio_pairing_started_fn_t pairing_started_callback   = NULL;
 static wavebird_radio_pairing_finished_fn_t pairing_finished_callback = NULL;
 
 // RAIL handle and RX buffer
-static RAIL_Handle_t rail_handle;
+static RAIL_Handle_t rail_handle = NULL;
 static __ALIGNED(RAIL_FIFO_ALIGNMENT) uint8_t packet_buffer[WAVEBIRD_PACKET_BYTES];
 
 // Pairing timeouts
@@ -119,6 +119,10 @@ int wavebird_radio_init(wavebird_radio_packet_fn_t packet_fn, wavebird_radio_err
   packet_callback = packet_fn;
   error_callback  = error_fn;
 
+  // Return early if RAIL handle is already initialized
+  if (rail_handle != NULL)
+    return 0;
+
   // Initialize RAIL handle
   RAIL_Config_t rail_config = {.eventsCallback = handle_rail_event};
   rail_handle               = RAIL_Init(&rail_config, NULL);
@@ -151,6 +155,51 @@ int wavebird_radio_init(wavebird_radio_packet_fn_t packet_fn, wavebird_radio_err
   return 0;
 }
 
+int wavebird_radio_enable(void)
+{
+  // Return early if radio is already enabled
+  if (radio_state == WB_RADIO_RX_ACTIVE)
+    return 0;
+
+  // Check if radio is initialized
+  if (rail_handle == NULL)
+    return -WB_RADIO_ERR;
+
+  // Start receiving on the current channel
+  RAIL_Status_t status = RAIL_StartRx(rail_handle, WAVEBIRD_CHANNEL_MAP[current_channel], NULL);
+  if (status != RAIL_STATUS_NO_ERROR)
+    return -WB_RADIO_ERR;
+
+  // Update the radio state
+  radio_state = WB_RADIO_RX_ACTIVE;
+
+  return 0;
+}
+
+int wavebird_radio_disable(void)
+{
+  // Return early if radio is already disabled
+  if (radio_state == WB_RADIO_IDLE)
+    return 0;
+
+  // Check if radio is initialized
+  if (rail_handle == NULL)
+    return -WB_RADIO_ERR;
+
+  // Stop any ongoing RX/TX operations
+  RAIL_Idle(rail_handle, RAIL_IDLE, true);
+
+  // Set radio state to idle
+  radio_state = WB_RADIO_IDLE;
+
+  // Clear any pending flags
+  sync_word_detected = false;
+  packet_held        = false;
+  error_code         = 0;
+
+  return 0;
+}
+
 uint8_t wavebird_radio_get_channel(void)
 {
   return current_channel;
@@ -162,17 +211,15 @@ int wavebird_radio_set_channel(uint8_t channel)
   if (channel > 15)
     return -WB_RADIO_ERR_INVALID_CHANNEL;
 
-  // Get the RAIL channel from the WaveBird channel number
-  uint8_t rail_channel = WAVEBIRD_CHANNEL_MAP[channel];
-
-  // Start receiving on the new channel
-  RAIL_StartRx(rail_handle, rail_channel, NULL);
-
   // Update the current channel
   current_channel = channel;
 
-  // Update the radio state
-  radio_state = WB_RADIO_RX_ACTIVE;
+  // If radio is currently enabled, immediately switch to the new channel
+  if (radio_state == WB_RADIO_RX_ACTIVE) {
+    RAIL_Status_t status = RAIL_StartRx(rail_handle, WAVEBIRD_CHANNEL_MAP[channel], NULL);
+    if (status != RAIL_STATUS_NO_ERROR)
+      return -WB_RADIO_ERR;
+  }
 
   return 0;
 }
@@ -214,12 +261,13 @@ void wavebird_radio_start_pairing(void)
 
 void wavebird_radio_stop_pairing(void)
 {
-  // Reset the channel
+  // Revert to the original channel
+  radio_state = WB_RADIO_RX_ACTIVE;
   wavebird_radio_set_channel(current_channel);
 
   // Fire the pairing finished callback
   if (pairing_finished_callback)
-    pairing_finished_callback(WB_RADIO_PAIRING_CANCELLED, current_channel);
+    pairing_finished_callback(WB_RADIO_PAIRING_CANCELED, current_channel);
 }
 
 void wavebird_radio_process(void)
@@ -241,7 +289,8 @@ void wavebird_radio_process(void)
 
       // Check if the pairing timeout has expired
       if (RAIL_GetTime() > pairing_state.timeout) {
-        // Reset the channel to the original channel
+        // Revert to the original channel
+        radio_state = WB_RADIO_RX_ACTIVE;
         wavebird_radio_set_channel(current_channel);
 
         // Fire the pairing callback
@@ -276,7 +325,8 @@ void wavebird_radio_process(void)
 
           // If we have received enough qualifying packets, finish pairing
           if (pairing_state.qualified_packets >= qualify_threshold) {
-            // Set the new channel
+            // Switch to the new channel
+            radio_state = WB_RADIO_RX_ACTIVE;
             wavebird_radio_set_channel(pairing_state.channel);
 
             // Fire the pairing callback
