@@ -10,6 +10,10 @@
 
 #include "si/commands.h"
 
+#ifdef __ZEPHYR__
+#include <zephyr/irq.h>
+#endif
+
 // RX peripheral configuration
 #define SI_RX_TIMER             TIMER0
 #define SI_RX_TIMER_IDX         0
@@ -213,6 +217,11 @@ static void init_rx(uint8_t port, uint8_t pin, uint32_t freq)
 
   // Set LDMA interrupts as high priority, since we need to reply immediately on completed RX
   NVIC_SetPriority(LDMA_IRQn, 0);
+
+  // Connect the LDMA interrupt if building for Zephyr
+#ifdef __ZEPHYR__
+  IRQ_CONNECT(LDMA_IRQn, 0, LDMA_IRQHandler, NULL, 0);
+#endif
 }
 
 // Initialize for SI data transmission
@@ -241,6 +250,11 @@ static void init_tx(uint8_t port, uint8_t pin, uint32_t freq)
   // Enable USART TX complete interrupts
   USART_IntEnable(SI_TX_USART, USART_IF_TXC);
   NVIC_EnableIRQ(SI_TX_USART_IRQn);
+
+  // Connect the USART interrupt if building for Zephyr
+#ifdef __ZEPHYR__
+  IRQ_CONNECT(USART0_TX_IRQn, 0, SI_TX_USART_IRQHandler, NULL, 0);
+#endif
 }
 
 // Process received SI edge timings into a byte
