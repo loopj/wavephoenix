@@ -45,9 +45,25 @@ uint8_t si_command_get_length(uint8_t command);
 si_command_handler_fn si_command_get_handler(uint8_t command);
 
 /**
- * Process incoming SI commands.
+ * Process an SI command.
  *
- * This function should be called periodically to check for incoming commands
- * and handle them as needed.
+ *
  */
 void si_command_process();
+
+/**
+ * Enable automatic command processing.
+ *
+ * After each command is processed, the SI bus will automatically
+ * transition back to RX mode and wait for the next command.
+ */
+void si_command_processing_enable();
+
+/**
+ * Disable automatic command processing.
+ *
+ * If a command is currently being processed, it will complete,
+ * but no further commands will be processed until
+ * `si_command_processing_enable()` is called again.
+ */
+void si_command_processing_disable();

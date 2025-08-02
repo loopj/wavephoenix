@@ -16,10 +16,39 @@ struct command_entry {
 static uint8_t command_state                   = COMMAND_STATE_IDLE;
 static struct command_entry command_table[256] = {0};
 static uint8_t command_buffer[SI_BLOCK_SIZE];
-static bool auto_tx_rx_transition = true;
+static bool auto_tx_rx_transition = false;
 
-static void on_tx_complete(int result);
-static void on_rx_complete(int result);
+// Command handler TX completion callback
+static void on_tx_complete(int result)
+{
+  if (result == 0) {
+    command_state = COMMAND_STATE_IDLE;
+
+    // Check if we need to transition back to RX mode
+    if (auto_tx_rx_transition)
+      si_command_process();
+  } else {
+    command_state = COMMAND_STATE_ERROR;
+  }
+}
+
+// Command handler RX completion callback
+static void on_rx_complete(int result)
+{
+  if (result == 0) {
+    // Look up the command in the table
+    struct command_entry *command = &command_table[command_buffer[0]];
+    if (command->handler) {
+      // Call the command handler
+      command_state = COMMAND_STATE_TX;
+      command->handler(command_buffer, on_tx_complete, command->context);
+      return;
+    }
+  }
+
+  // Error during command read or handler not found
+  command_state = COMMAND_STATE_ERROR;
+}
 
 void si_command_register(uint8_t command, uint8_t length, si_command_handler_fn handler, void *context)
 {
@@ -51,36 +80,13 @@ void si_command_process()
   }
 }
 
-// Command handler TX completion callback
-static void on_tx_complete(int result)
+void si_command_processing_enable()
 {
-  if (result == 0) {
-    // Check if we need to transition back to RX mode
-    if (auto_tx_rx_transition) {
-      command_state = COMMAND_STATE_RX;
-      si_read_command(command_buffer, on_rx_complete);
-    } else {
-      command_state = COMMAND_STATE_IDLE;
-    }
-  } else {
-    command_state = COMMAND_STATE_ERROR;
-  }
+  auto_tx_rx_transition = true;
+  si_command_process();
 }
 
-// Command handler RX completion callback
-static void on_rx_complete(int result)
+void si_command_processing_disable()
 {
-  if (result == 0) {
-    // Look up the command in the table
-    struct command_entry *command = &command_table[command_buffer[0]];
-    if (command->handler) {
-      // Call the command handler
-      command_state = COMMAND_STATE_TX;
-      command->handler(command_buffer, on_tx_complete, command->context);
-      return;
-    }
-  }
-
-  // Error during command read or handler not found
-  command_state = COMMAND_STATE_ERROR;
+  auto_tx_rx_transition = false;
 }
