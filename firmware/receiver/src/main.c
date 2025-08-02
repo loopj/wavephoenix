@@ -212,7 +212,7 @@ static void handle_wavebird_packet(const uint8_t *packet)
 
     // Set the input state as valid
     input_valid_until = millis + INPUT_VALID_MS;
-    si_device_set_input_valid(&si_device, true);
+    si_device_gc_input_valid(&si_device, true);
   } else {
     //
     // Handle origin packets
@@ -439,6 +439,6 @@ int main(void)
 
     // Invalidate stale inputs
     if (si_device.input_valid && (int32_t)(millis - input_valid_until) >= 0)
-      si_device_set_input_valid(&si_device, false);
+      si_device_gc_input_valid(&si_device, false);
   }
 }
