@@ -7,6 +7,15 @@ project(si LANGUAGES C)
 # Define the library
 add_library(si STATIC "src/crc8.c" "src/commands.c" "src/device/gc_controller.c")
 
+# Configure SI peripheral selection
+if(DEFINED SI_RX_TIMER_IDX)
+  target_compile_definitions(si PUBLIC SI_RX_TIMER_IDX=${SI_RX_TIMER_IDX})
+endif()
+
+if(DEFINED SI_TX_USART_IDX)
+  target_compile_definitions(si PUBLIC SI_TX_USART_IDX=${SI_TX_USART_IDX})
+endif()
+
 # Specify the include paths
 target_include_directories(si PUBLIC include)
 

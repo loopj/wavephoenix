@@ -14,19 +14,51 @@
 #include <zephyr/irq.h>
 #endif
 
-// RX peripheral configuration
-#define SI_RX_TIMER             TIMER0
+// RX TIMER peripheral configuration
+#ifndef SI_RX_TIMER_IDX
 #define SI_RX_TIMER_IDX         0
-#define SI_RX_TIMER_CLK         cmuClock_TIMER0
-#define SI_RX_LDMA_PERIPHERAL   ldmaPeripheralSignal_TIMER0_CC0
+#endif
 
-// TX peripheral configuration
-#define SI_TX_USART             USART0
+#if SI_RX_TIMER_IDX == 0
+#define SI_RX_TIMER             TIMER0
+#define SI_RX_TIMER_CLK         cmuClock_TIMER0
+#define SI_RX_LDMA_SIGNAL       ldmaPeripheralSignal_TIMER0_CC0
+#elif SI_RX_TIMER_IDX == 1
+#define SI_RX_TIMER             TIMER1
+#define SI_RX_TIMER_CLK         cmuClock_TIMER1
+#define SI_RX_LDMA_SIGNAL       ldmaPeripheralSignal_TIMER1_CC0
+#elif SI_RX_TIMER_IDX == 2
+#define SI_RX_TIMER             TIMER2
+#define SI_RX_TIMER_CLK         cmuClock_TIMER2
+#define SI_RX_LDMA_SIGNAL       ldmaPeripheralSignal_TIMER2_CC0
+#elif SI_RX_TIMER_IDX == 3
+#define SI_RX_TIMER             TIMER3
+#define SI_RX_TIMER_CLK         cmuClock_TIMER3
+#define SI_RX_LDMA_SIGNAL       ldmaPeripheralSignal_TIMER3_CC0
+#else
+#error "Invalid SI_RX_TIMER_IDX value"
+#endif
+
+// TX USART peripheral configuration
+#ifndef SI_TX_USART_IDX
 #define SI_TX_USART_IDX         0
+#endif
+
+#if SI_TX_USART_IDX == 0
+#define SI_TX_USART             USART0
 #define SI_TX_USART_CLK         cmuClock_USART0
 #define SI_TX_USART_IRQn        USART0_TX_IRQn
 #define SI_TX_USART_IRQHandler  USART0_TX_IRQHandler
-#define SI_TX_LDMA_PERIPHERAL   ldmaPeripheralSignal_USART0_TXBL
+#define SI_TX_LDMA_SIGNAL       ldmaPeripheralSignal_USART0_TXBL
+#elif SI_TX_USART_IDX == 1
+#define SI_TX_USART             USART1
+#define SI_TX_USART_CLK         cmuClock_USART1
+#define SI_TX_USART_IRQn        USART1_TX_IRQn
+#define SI_TX_USART_IRQHandler  USART1_TX_IRQHandler
+#define SI_TX_LDMA_SIGNAL       ldmaPeripheralSignal_USART1_TXBL
+#else
+#error "Invalid SI_TX_USART_IDX value"
+#endif
 
 // Number of chips per bit for the line coding
 #define CHIPS_PER_BIT           4
@@ -69,14 +101,14 @@ static struct {
 } si_xfer;
 
 // RX LDMA configuration
-static LDMA_TransferCfg_t ldma_rx_config       = LDMA_TRANSFER_CFG_PERIPHERAL(SI_RX_LDMA_PERIPHERAL);
+static LDMA_TransferCfg_t ldma_rx_config       = LDMA_TRANSFER_CFG_PERIPHERAL(SI_RX_LDMA_SIGNAL);
 static LDMA_Descriptor_t ldma_rx_descriptors[] = {
     LDMA_DESCRIPTOR_LINKREL_P2M_WORD(&SI_RX_TIMER->CC[0].ICF, &rx_edge_timings[0], RX_BUFFER_SIZE, 1),
     LDMA_DESCRIPTOR_LINKREL_P2M_WORD(&SI_RX_TIMER->CC[0].ICF, &rx_edge_timings[1], RX_BUFFER_SIZE, -1),
 };
 
 // TX LDMA configuration
-static LDMA_TransferCfg_t ldma_tx_config       = LDMA_TRANSFER_CFG_PERIPHERAL(SI_TX_LDMA_PERIPHERAL);
+static LDMA_TransferCfg_t ldma_tx_config       = LDMA_TRANSFER_CFG_PERIPHERAL(SI_TX_LDMA_SIGNAL);
 static LDMA_Descriptor_t ldma_tx_descriptors[] = {
     LDMA_DESCRIPTOR_SINGLE_M2P_BYTE(tx_buffer, &(SI_TX_USART->TXDATA), 1),
 };
@@ -253,7 +285,7 @@ static void init_tx(uint8_t port, uint8_t pin, uint32_t freq)
 
   // Connect the USART interrupt if building for Zephyr
 #ifdef __ZEPHYR__
-  IRQ_CONNECT(USART0_TX_IRQn, 0, SI_TX_USART_IRQHandler, NULL, 0);
+  IRQ_CONNECT(SI_TX_USART_IRQn, 0, SI_TX_USART_IRQHandler, NULL, 0);
 #endif
 }
 
