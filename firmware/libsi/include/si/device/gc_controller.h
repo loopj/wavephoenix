@@ -134,10 +134,13 @@ static inline bool si_device_gc_wireless_id_fixed(struct si_device_gc_controller
 /**
  * Mark the input state as valid.
  *
+ * When the input state is marked valid, we'll use the contents of device->input
+ * when replying to poll commands, otherwise we'll use the origin state.
+ *
  * @param device the device to set the input state for
  * @param valid true if the input state is valid
  */
-static inline void si_device_set_input_valid(struct si_device_gc_controller *device, bool valid)
+static inline void si_device_gc_input_valid(struct si_device_gc_controller *device, bool valid)
 {
   device->input_valid = valid;
 }
