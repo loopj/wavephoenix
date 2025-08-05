@@ -9,16 +9,9 @@ enum {
   BUS_STATE_ERROR,
 };
 
-struct command_entry {
-  uint8_t command;
-  uint8_t length;
-  si_command_handler_fn handler;
-  void *context;
-};
-
 // Command table for registered SI commands
-static struct command_entry command_table[COMMAND_TABLE_SIZE] = {0};
-static struct command_entry *current_command                  = NULL;
+static struct si_command command_table[COMMAND_TABLE_SIZE] = {0};
+static struct si_command *current_command                  = NULL;
 
 // Current bus state
 static uint8_t bus_state = BUS_STATE_UNKNOWN;
@@ -43,20 +36,6 @@ static inline uint8_t hash_command(uint8_t command)
   return (command % (COMMAND_TABLE_SIZE - 2)) + 2;
 }
 
-// Find a command entry by command id
-static struct command_entry *find_command(uint8_t command)
-{
-  uint8_t index = hash_command(command);
-
-  while (command_table[index].handler != NULL) {
-    if (command_table[index].command == command) {
-      return &command_table[index];
-    }
-    index = (index + 1) % COMMAND_TABLE_SIZE;
-  }
-  return NULL;
-}
-
 // Command handler TX completion callback
 static void on_tx_complete(int result)
 {
@@ -73,7 +52,7 @@ static void on_rx_complete(int result)
 {
   // If we successfully read a command and have a handler, call it
   if (result >= 0 && current_command && current_command->handler) {
-    current_command->handler(command_buffer, on_tx_complete, current_command->context);
+    current_command->handler(command_buffer, on_tx_complete, current_command->user_data);
     return;
   }
 
@@ -87,22 +66,21 @@ static void on_rx_complete(int result)
 
 static bool command_byte_cb(uint8_t byte, uint8_t byte_index)
 {
-  // If this is the first byte, look up the command entry
+  // If this is the first byte, check if there is a registered command
   if (byte_index == 0) {
-    current_command = find_command(byte);
-    if (current_command == NULL) {
-      return false; // Stop reading on unknown command
-    }
+    current_command = si_command_find_by_id(byte);
+    if (current_command == NULL)
+      return false;
   }
 
-  if (byte_index == current_command->length - 1) {
-    return false; // Stop reading after the expected length
-  }
+  // Stop reading when we reach the expected length
+  if (byte_index == current_command->length - 1)
+    return false;
 
   return true;
 }
 
-void si_command_register(uint8_t command, uint8_t length, si_command_handler_fn handler, void *context)
+void si_command_register(uint8_t command, uint8_t length, si_command_handler_fn handler, void *user_data)
 {
   uint8_t index = hash_command(command);
 
@@ -113,13 +91,26 @@ void si_command_register(uint8_t command, uint8_t length, si_command_handler_fn 
     index = (index + 1) % COMMAND_TABLE_SIZE;
   }
 
-  // Store the command entry
-  command_table[index] = (struct command_entry){
-      .command = command,
-      .length  = length,
-      .handler = handler,
-      .context = context,
+  // Store the command
+  command_table[index] = (struct si_command){
+      .command   = command,
+      .length    = length,
+      .handler   = handler,
+      .user_data = user_data,
   };
+}
+
+struct si_command *si_command_find_by_id(uint8_t command)
+{
+  uint8_t index = hash_command(command);
+
+  while (command_table[index].handler != NULL) {
+    if (command_table[index].command == command) {
+      return &command_table[index];
+    }
+    index = (index + 1) % COMMAND_TABLE_SIZE;
+  }
+  return NULL;
 }
 
 void si_command_process()

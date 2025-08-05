@@ -17,14 +17,33 @@
 typedef int (*si_command_handler_fn)(const uint8_t *command, si_complete_cb_t callback, void *context);
 
 /**
+ * Command structure representing a registered command.
+ */
+struct si_command {
+  uint8_t command;
+  uint8_t length;
+  si_command_handler_fn handler;
+  void *user_data;
+};
+
+/**
  * Register a command handler for commands from an SI host.
  *
  * @param command the command to handle
- * @param command_length the length of the command
+ * @param command_length the length of the command in bytes
  * @param handler the command handler function
  *
  */
 void si_command_register(uint8_t command, uint8_t length, si_command_handler_fn handler, void *context);
+
+/**
+ * Look up a command structure by command ID.
+ *
+ * @param command the command ID to look up
+ *
+ * @return pointer to the command structure, or NULL if not found
+ */
+struct si_command *si_command_find_by_id(uint8_t command);
 
 /**
  * Process a single SI command on the bus.
