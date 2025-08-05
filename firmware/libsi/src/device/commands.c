@@ -127,12 +127,18 @@ void si_command_process()
 
 void si_command_processing_enable()
 {
+  if (auto_tx_rx_transition)
+    return;
+
   auto_tx_rx_transition = true;
   si_command_process();
 }
 
 void si_command_processing_disable()
 {
+  if (!auto_tx_rx_transition)
+    return;
+
   auto_tx_rx_transition = false;
   bus_state             = BUS_STATE_UNKNOWN;
 }

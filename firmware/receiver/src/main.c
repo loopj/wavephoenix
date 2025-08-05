@@ -78,7 +78,6 @@ struct {
 
 // SI state
 static struct si_device_gc_controller si_device = {0};
-static bool enable_si_command_handling          = true;
 
 // Buttons, switches, and LEDs
 static struct led *status_led              = NULL;
@@ -107,7 +106,7 @@ static void initialize_controller(uint8_t controller_type)
   if (controller_type == WP_CONT_TYPE_GC_WAVEBIRD) {
     // Present as an OEM WaveBird receiver
     si_device_gc_init(&si_device, SI_TYPE_GC | SI_GC_WIRELESS | SI_GC_NOMOTOR);
-    enable_si_command_handling = true;
+    si_command_processing_enable();
   } else if (controller_type == WP_CONT_TYPE_GC_WIRED_NOMOTOR) {
     // Present as a wired GameCube controller without rumble
     si_device_gc_init(&si_device, SI_TYPE_GC | SI_GC_STANDARD | SI_GC_NOMOTOR);
@@ -208,7 +207,7 @@ static void handle_wavebird_packet(const uint8_t *packet)
     memcpy(&si_device.input.stick_x, &message[4], 6);
 
     // We have a good input state, enable SI command handling if it was disabled
-    enable_si_command_handling = true;
+    si_command_processing_enable();
 
     // Set the input state as valid
     input_valid_until = millis + INPUT_VALID_MS;
@@ -246,7 +245,7 @@ static void handle_pairing_started(void)
   pairing_active = true;
 
   // Disable SI command handling during pairing
-  enable_si_command_handling = false;
+  si_command_processing_disable();
 
   // Set the LED effect to indicate pairing mode
   if (status_led)
@@ -281,7 +280,7 @@ static void handle_pairing_finished(uint8_t status, uint8_t channel)
       led_effect_blink(status_led, 500, 3);
 
     // Immediately reenable SI command handling
-    enable_si_command_handling = true;
+    si_command_processing_enable();
   } else {
     DEBUG_PRINT("Pairing cancelled\n");
 
@@ -290,7 +289,7 @@ static void handle_pairing_finished(uint8_t status, uint8_t channel)
       led_off(status_led);
 
     // Immediately reenable SI command handling
-    enable_si_command_handling = true;
+    si_command_processing_enable();
   }
 }
 
@@ -421,15 +420,8 @@ int main(void)
                                                                                            : "Wired (no motor)");
   DEBUG_PRINT("\n");
 
-  // Wait for the SI bus to be idle before starting the main loop
-  si_await_bus_idle();
-
   // Main loop
   while (1) {
-    // Check if we need to initiate the next SI transfer
-    if (enable_si_command_handling)
-      si_command_process();
-
     // Check for new wavebird packets
     wavebird_radio_process();
 
