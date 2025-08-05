@@ -1,6 +1,6 @@
 #include <string.h>
 
-#include "si/commands.h"
+#include "si/device/commands.h"
 #include "si/device/gc_controller.h"
 
 /*
@@ -74,7 +74,7 @@ static uint8_t *pack_input_state(struct si_device_gc_input_state *src, uint8_t a
  * Command:         {0x00}
  * Response:        A 3-byte device info.
  */
-static int handle_info(const uint8_t *command, si_callback_fn callback, void *context)
+static int handle_info(const uint8_t *command, si_complete_cb_t callback, void *context)
 {
   struct si_device_gc_controller *device = (struct si_device_gc_controller *)context;
 
@@ -90,7 +90,7 @@ static int handle_info(const uint8_t *command, si_callback_fn callback, void *co
  * Command:         {0xFF}
  * Response:        A 3-byte device info.
  */
-static int handle_reset(const uint8_t *command, si_callback_fn callback, void *context)
+static int handle_reset(const uint8_t *command, si_complete_cb_t callback, void *context)
 {
   struct si_device_gc_controller *device = (struct si_device_gc_controller *)context;
 
@@ -108,7 +108,7 @@ static int handle_reset(const uint8_t *command, si_callback_fn callback, void *c
  * Command:         {0x40, analog_mode, motor_state}
  * Response:        An 8-byte packed input state, see `pack_input_state` for details
  */
-static int handle_short_poll(const uint8_t *command, si_callback_fn callback, void *context)
+static int handle_short_poll(const uint8_t *command, si_complete_cb_t callback, void *context)
 {
   struct si_device_gc_controller *device = (struct si_device_gc_controller *)context;
 
@@ -150,7 +150,7 @@ static int handle_short_poll(const uint8_t *command, si_callback_fn callback, vo
  * Command:         {0x41}
  * Response:        A 10-byte input state representing the current origin.
  */
-static int handle_read_origin(const uint8_t *command, si_callback_fn callback, void *context)
+static int handle_read_origin(const uint8_t *command, si_complete_cb_t callback, void *context)
 {
   struct si_device_gc_controller *device = (struct si_device_gc_controller *)context;
 
@@ -174,7 +174,7 @@ static int handle_read_origin(const uint8_t *command, si_callback_fn callback, v
  * Command:         {0x42, 0x00, 0x00}
  * Response:        A 10-byte input state representing the current origin.
  */
-static int handle_calibrate(const uint8_t *command, si_callback_fn callback, void *context)
+static int handle_calibrate(const uint8_t *command, si_complete_cb_t callback, void *context)
 {
   struct si_device_gc_controller *device = (struct si_device_gc_controller *)context;
 
@@ -205,7 +205,7 @@ static int handle_calibrate(const uint8_t *command, si_callback_fn callback, voi
  *
  * NOTE: This command is not used by any games, but is included for completeness.
  */
-static int handle_long_poll(const uint8_t *command, si_callback_fn callback, void *context)
+static int handle_long_poll(const uint8_t *command, si_complete_cb_t callback, void *context)
 {
   struct si_device_gc_controller *device = (struct si_device_gc_controller *)context;
 
@@ -238,7 +238,7 @@ static int handle_long_poll(const uint8_t *command, si_callback_fn callback, voi
  * Command:         {0x4D, 0x??, 0x??} - 2nd and 3rd bytes seem to differ every time
  * Response:        8 bytes of zeroes.
  */
-static int handle_probe_device(const uint8_t *command, si_callback_fn callback, void *context)
+static int handle_probe_device(const uint8_t *command, si_complete_cb_t callback, void *context)
 {
   // Respond with 8 bytes of zeroes
   uint8_t response[8] = {0};
@@ -255,7 +255,7 @@ static int handle_probe_device(const uint8_t *command, si_callback_fn callback, 
  * Command:         {0x4E, wireless_id_h | SI_WIRELESS_FIX_ID, wireless_id_l}
  * Response:        A 3-byte device info.
  */
-static int handle_fix_device(const uint8_t *command, si_callback_fn callback, void *context)
+static int handle_fix_device(const uint8_t *command, si_complete_cb_t callback, void *context)
 {
   struct si_device_gc_controller *device = (struct si_device_gc_controller *)context;
 

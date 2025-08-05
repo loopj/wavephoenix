@@ -1,6 +1,6 @@
 #include "unity.h"
 
-#include "si/commands.h"
+#include "si/device/commands.h"
 #include "si/si.h"
 
 // Stub functions
@@ -8,12 +8,12 @@ void si_await_bus_idle(void)
 {
 }
 
-static int handle_info(const uint8_t *command, si_callback_fn callback, void *context)
+static int handle_info(const uint8_t *command, si_complete_cb_t callback, void *context)
 {
   return 3;
 }
 
-static int handle_reset(const uint8_t *command, si_callback_fn callback, void *context)
+static int handle_reset(const uint8_t *command, si_complete_cb_t callback, void *context)
 {
   return 3;
 }

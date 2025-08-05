@@ -3,7 +3,7 @@
 
 #include "unity.h"
 
-#include "si/commands.h"
+#include "si/device/commands.h"
 #include "si/device/gc_controller.h"
 #include "si/si.h"
 
@@ -11,13 +11,13 @@
 static uint8_t response_buf[SI_BLOCK_SIZE] = {0};
 static uint8_t response_len                = 0;
 
-void si_write_bytes(const uint8_t *data, uint8_t length, si_callback_fn callback)
+void si_write_bytes(const uint8_t *data, uint8_t length, si_complete_cb_t callback)
 {
   memcpy(response_buf, data, length);
   response_len = length;
 }
 
-void si_read_command(uint8_t *data, si_callback_fn callback)
+void si_read_command(uint8_t *data, si_complete_cb_t callback)
 {
 }
 

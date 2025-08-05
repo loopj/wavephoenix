@@ -5,7 +5,7 @@
 #include "em_cmu.h"
 #include "em_gpio.h"
 
-#include "si/commands.h"
+#include "si/device/commands.h"
 #include "si/device/gc_controller.h"
 #include "wavebird/message.h"
 #include "wavebird/packet.h"

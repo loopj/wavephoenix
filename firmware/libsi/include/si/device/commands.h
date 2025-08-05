@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "si.h"
+#include "si/si.h"
 
 /**
  * Function type for command handlers.
@@ -14,7 +14,7 @@
  *
  * @return 0 on success, negative error code on failure
  */
-typedef int (*si_command_handler_fn)(const uint8_t *command, si_callback_fn callback, void *context);
+typedef int (*si_command_handler_fn)(const uint8_t *command, si_complete_cb_t callback, void *context);
 
 /**
  * Register a command handler for commands from an SI host.
@@ -27,27 +27,9 @@ typedef int (*si_command_handler_fn)(const uint8_t *command, si_callback_fn call
 void si_command_register(uint8_t command, uint8_t length, si_command_handler_fn handler, void *context);
 
 /**
- * Get the expected length of an SI command.
+ * Process a single SI command on the bus.
  *
- * @param command the command to check
- *
- * @return the expected length of the command, in bytes, or 0 if the command is unknown
- */
-uint8_t si_command_get_length(uint8_t command);
-
-/**
- * Get the command handler for an SI command.
- *
- * @param command the command to check
- *
- * @return the command handler function, or NULL if the command is unknown
- */
-si_command_handler_fn si_command_get_handler(uint8_t command);
-
-/**
- * Process an SI command.
- *
- *
+ * This will read a command from the SI bus and call the registered handler.
  */
 void si_command_process();
 

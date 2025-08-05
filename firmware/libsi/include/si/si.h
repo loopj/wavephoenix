@@ -41,6 +41,7 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -119,11 +120,20 @@ enum {
 };
 
 /**
+ * Function type for per-byte callbacks during receive operations.
+ *
+ * @param byte the received byte
+ * @param byte_index the zero-based index of the byte (0 for first byte)
+ * @return true to continue the transfer, false to stop it
+ */
+typedef bool (*si_byte_cb_t)(uint8_t byte, uint8_t byte_index);
+
+/**
  * Function type for transfer completion callbacks.
  *
  * @param result 0 on success, negative error code on failure
  */
-typedef void (*si_callback_fn)(int result);
+typedef void (*si_complete_cb_t)(int result_or_bytes_read);
 
 /**
  * Initialize the SI bus.
@@ -143,24 +153,26 @@ void si_init(uint8_t port, uint8_t pin, uint8_t mode, uint32_t rx_freq, uint32_t
  * @param length the length of the data
  * @param callback function to call when the transfer is complete
  */
-void si_write_bytes(const uint8_t *data, uint8_t length, si_callback_fn callback);
+void si_write_bytes(const uint8_t *data, uint8_t length, si_complete_cb_t callback);
 
 /**
  * Read data from the SI bus.
  *
  * @param buffer the buffer to read into
- * @param length the number of bytes expected
- * @param callback function to call when the transfer is complete
+ * @param max_length the maximum number of bytes to read (buffer size)
+ * @param byte_callback optional function to call for each received byte (can be NULL)
+ * @param complete_callback function to call when the transfer is complete
  */
-void si_read_bytes(uint8_t *buffer, uint8_t length, si_callback_fn callback);
+void si_read_bytes(uint8_t *buffer, uint8_t max_length, si_byte_cb_t byte_callback, si_complete_cb_t complete_callback);
 
 /**
  * Read a single command from the SI bus.
  *
  * @param buffer the buffer to read into
+ * @param max_length the maximum buffer size
  * @param callback function to call when the command has been read
  */
-void si_read_command(uint8_t *buffer, si_callback_fn callback);
+void si_read_command(uint8_t *buffer, uint8_t max_length, si_complete_cb_t callback);
 
 /**
  * Wait for the SI bus to be idle.

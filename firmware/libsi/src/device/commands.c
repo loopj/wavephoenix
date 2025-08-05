@@ -1,4 +1,4 @@
-#include "si/commands.h"
+#include "si/device/commands.h"
 
 #define COMMAND_TABLE_SIZE 18
 
@@ -16,12 +16,21 @@ struct command_entry {
   void *context;
 };
 
-static uint8_t bus_state                                      = BUS_STATE_UNKNOWN;
+// Command table for registered SI commands
 static struct command_entry command_table[COMMAND_TABLE_SIZE] = {0};
+static struct command_entry *current_command                  = NULL;
+
+// Current bus state
+static uint8_t bus_state = BUS_STATE_UNKNOWN;
+
+// Buffer for reading/writing commands
 static uint8_t command_buffer[SI_BLOCK_SIZE];
+
+// Automatically transition back to reading commands
 static bool auto_tx_rx_transition = false;
 
 // Vaguely context-aware hash function
+// We're hashing to reduce memory usage while keeping O(1) lookup time in most cases
 static inline uint8_t hash_command(uint8_t command)
 {
   // Reserve hash slots for universal commands
@@ -62,18 +71,13 @@ static void on_tx_complete(int result)
 // Command handler RX completion callback
 static void on_rx_complete(int result)
 {
-  if (result == 0) {
-    // Look up the command in the table
-    struct command_entry *command = find_command(command_buffer[0]);
-    if (command && command->handler) {
-      // Call the command handler
-      bus_state = BUS_STATE_BUSY;
-      command->handler(command_buffer, on_tx_complete, command->context);
-      return;
-    }
+  // If we successfully read a command and have a handler, call it
+  if (result >= 0 && current_command && current_command->handler) {
+    current_command->handler(command_buffer, on_tx_complete, current_command->context);
+    return;
   }
 
-  // Error during command read or handler not found
+  // Otherwise, there was either an error during the read, or handler not found
   bus_state = BUS_STATE_ERROR;
 
   // Transition back to RX mode if auto transition is enabled
@@ -81,37 +85,41 @@ static void on_rx_complete(int result)
     si_command_process();
 }
 
+static bool command_byte_cb(uint8_t byte, uint8_t byte_index)
+{
+  // If this is the first byte, look up the command entry
+  if (byte_index == 0) {
+    current_command = find_command(byte);
+    if (current_command == NULL) {
+      return false; // Stop reading on unknown command
+    }
+  }
+
+  if (byte_index == current_command->length - 1) {
+    return false; // Stop reading after the expected length
+  }
+
+  return true;
+}
+
 void si_command_register(uint8_t command, uint8_t length, si_command_handler_fn handler, void *context)
 {
   uint8_t index = hash_command(command);
 
   // Linear probing for collision resolution
+  // If the slot is already occupied, find the next available slot
+  // This has high clustering, but is simple and effective for our use case
   while (command_table[index].handler != NULL && command_table[index].command != command) {
     index = (index + 1) % COMMAND_TABLE_SIZE;
   }
 
-  command_table[index].command = command;
-  command_table[index].length  = length;
-  command_table[index].handler = handler;
-  command_table[index].context = context;
-}
-
-uint8_t si_command_get_length(uint8_t command)
-{
-  struct command_entry *entry = find_command(command);
-  if (entry == NULL)
-    return 0;
-
-  return entry->length;
-}
-
-si_command_handler_fn si_command_get_handler(uint8_t command)
-{
-  struct command_entry *entry = find_command(command);
-  if (entry == NULL)
-    return NULL;
-
-  return entry->handler;
+  // Store the command entry
+  command_table[index] = (struct command_entry){
+      .command = command,
+      .length  = length,
+      .handler = handler,
+      .context = context,
+  };
 }
 
 void si_command_process()
@@ -119,8 +127,11 @@ void si_command_process()
   if (bus_state != BUS_STATE_IDLE)
     si_await_bus_idle();
 
+  // Initialize command reading context
+  current_command = NULL;
+
   bus_state = BUS_STATE_BUSY;
-  si_read_command(command_buffer, on_rx_complete);
+  si_read_bytes(command_buffer, SI_BLOCK_SIZE, command_byte_cb, on_rx_complete);
 }
 
 void si_command_processing_enable()
