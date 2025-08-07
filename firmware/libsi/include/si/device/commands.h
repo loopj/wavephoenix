@@ -49,8 +49,10 @@ struct si_command *si_command_find_by_id(uint8_t command);
  * Process a single SI command on the bus.
  *
  * This will read a command from the SI bus and call the registered handler.
+ *
+ * @param await_bus_idle if true, will wait for the SI bus to be idle before reading commands
  */
-void si_command_process();
+void si_command_process(bool await_bus_idle);
 
 /**
  * Enable automatic command processing.

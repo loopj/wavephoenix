@@ -197,6 +197,7 @@ void si_await_bus_idle(void)
 
   while (1) {
     // Wait for the line to go high
+    // TODO: Add a timeout
     while (GPIO_PinInGet(si_data_port, si_data_pin) == 0)
       ;
 
@@ -204,6 +205,7 @@ void si_await_bus_idle(void)
     TIMER_CounterSet(SI_RX_TIMER, 0);
 
     // Wait for either the bus idle period to elapse or line to go low
+    // TODO: Add a timeout
     while (GPIO_PinInGet(si_data_port, si_data_pin) == 1) {
       if (TIMER_CounterGet(SI_RX_TIMER) >= rx_bus_idle_period)
         goto idle_detected;

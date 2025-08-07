@@ -2,25 +2,15 @@
 
 #define COMMAND_TABLE_SIZE 18
 
-enum {
-  BUS_STATE_UNKNOWN = 0,
-  BUS_STATE_IDLE,
-  BUS_STATE_BUSY,
-  BUS_STATE_ERROR,
-};
-
 // Command table for registered SI commands
 static struct si_command command_table[COMMAND_TABLE_SIZE] = {0};
 static struct si_command *current_command                  = NULL;
-
-// Current bus state
-static uint8_t bus_state = BUS_STATE_UNKNOWN;
 
 // Buffer for reading/writing commands
 static uint8_t command_buffer[SI_BLOCK_SIZE];
 
 // Automatically transition back to reading commands
-static bool auto_tx_rx_transition = false;
+static bool command_processing_enabled = false;
 
 // Vaguely context-aware hash function
 // We're hashing to reduce memory usage while keeping O(1) lookup time in most cases
@@ -39,12 +29,10 @@ static inline uint8_t hash_command(uint8_t command)
 // Command handler TX completion callback
 static void on_tx_complete(int result)
 {
-  // Update bus state based on result
-  bus_state = (result < 0) ? BUS_STATE_ERROR : BUS_STATE_IDLE;
-
-  // Transition back to RX mode if auto transition is enabled
-  if (auto_tx_rx_transition)
-    si_command_process();
+  // Begin listening for the next command if command processing is enabled
+  // Wait for bus idle if there was an error
+  if (command_processing_enabled)
+    si_command_process(result < 0);
 }
 
 // Command handler RX completion callback
@@ -56,12 +44,9 @@ static void on_rx_complete(int result)
     return;
   }
 
-  // Otherwise, there was either an error during the read, or handler not found
-  bus_state = BUS_STATE_ERROR;
-
-  // Transition back to RX mode if auto transition is enabled
-  if (auto_tx_rx_transition)
-    si_command_process();
+  // Begin listening for the next command if command processing is enabled
+  if (command_processing_enabled)
+    si_command_process(true);
 }
 
 static bool command_byte_cb(uint8_t byte, uint8_t byte_index)
@@ -113,32 +98,33 @@ struct si_command *si_command_find_by_id(uint8_t command)
   return NULL;
 }
 
-void si_command_process()
+void si_command_process(bool await_bus_idle)
 {
-  if (bus_state != BUS_STATE_IDLE)
+  // Await for the bus to be idle if requested
+  if (await_bus_idle)
     si_await_bus_idle();
 
-  // Initialize command reading context
-  current_command = NULL;
-
-  bus_state = BUS_STATE_BUSY;
+  // Begin reading the next command from the SI bus
   si_read_bytes(command_buffer, SI_BLOCK_SIZE, command_byte_cb, on_rx_complete);
 }
 
 void si_command_processing_enable()
 {
-  if (auto_tx_rx_transition)
+  if (command_processing_enabled)
     return;
 
-  auto_tx_rx_transition = true;
-  si_command_process();
+  // Mark command processing as enabled
+  command_processing_enabled = true;
+
+  // Start processing commands, waiting for the bus to be idle
+  si_command_process(true);
 }
 
 void si_command_processing_disable()
 {
-  if (!auto_tx_rx_transition)
+  if (!command_processing_enabled)
     return;
 
-  auto_tx_rx_transition = false;
-  bus_state             = BUS_STATE_UNKNOWN;
+  // Mark command processing as disabled
+  command_processing_enabled = false;
 }
