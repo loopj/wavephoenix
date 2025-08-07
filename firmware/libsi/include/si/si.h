@@ -57,31 +57,6 @@
 #define SI_CMD_INFO_LEN             1
 #define SI_CMD_INFO_RESP            3
 
-// GameCube controller commands
-#define SI_CMD_GC_SHORT_POLL        0x40
-#define SI_CMD_GC_SHORT_POLL_LEN    3
-#define SI_CMD_GC_SHORT_POLL_RESP   8
-
-#define SI_CMD_GC_READ_ORIGIN       0x41
-#define SI_CMD_GC_READ_ORIGIN_LEN   1
-#define SI_CMD_GC_READ_ORIGIN_RESP  10
-
-#define SI_CMD_GC_CALIBRATE         0x42
-#define SI_CMD_GC_CALIBRATE_LEN     3
-#define SI_CMD_GC_CALIBRATE_RESP    10
-
-#define SI_CMD_GC_LONG_POLL         0x43
-#define SI_CMD_GC_LONG_POLL_LEN     3
-#define SI_CMD_GC_LONG_POLL_RESP    10
-
-#define SI_CMD_GC_PROBE_DEVICE      0x4D
-#define SI_CMD_GC_PROBE_DEVICE_LEN  3
-#define SI_CMD_GC_PROBE_DEVICE_RESP 8
-
-#define SI_CMD_GC_FIX_DEVICE        0x4E
-#define SI_CMD_GC_FIX_DEVICE_LEN    3
-#define SI_CMD_GC_FIX_DEVICE_RESP   3
-
 // SI device info flags
 // On wireless controllers 0x00C0FF is reserved for the controller ID
 
@@ -131,9 +106,9 @@ typedef bool (*si_byte_cb_t)(uint8_t byte, uint8_t byte_index);
 /**
  * Function type for transfer completion callbacks.
  *
- * @param result 0 on success, negative error code on failure
+ * @param result positive number of bytes read on success, negative error code on failure
  */
-typedef void (*si_complete_cb_t)(int result_or_bytes_read);
+typedef void (*si_complete_cb_t)(int result);
 
 /**
  * Initialize the SI bus.
@@ -164,15 +139,6 @@ void si_write_bytes(const uint8_t *data, uint8_t length, si_complete_cb_t callba
  * @param complete_callback function to call when the transfer is complete
  */
 void si_read_bytes(uint8_t *buffer, uint8_t max_length, si_byte_cb_t byte_callback, si_complete_cb_t complete_callback);
-
-/**
- * Read a single command from the SI bus.
- *
- * @param buffer the buffer to read into
- * @param max_length the maximum buffer size
- * @param callback function to call when the command has been read
- */
-void si_read_command(uint8_t *buffer, uint8_t max_length, si_complete_cb_t callback);
 
 /**
  * Wait for the SI bus to be idle.
