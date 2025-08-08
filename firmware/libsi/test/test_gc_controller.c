@@ -3,7 +3,7 @@
 
 #include "unity.h"
 
-#include "si/commands.h"
+#include "si/device/commands.h"
 #include "si/device/gc_controller.h"
 #include "si/si.h"
 
@@ -11,21 +11,21 @@
 static uint8_t response_buf[SI_BLOCK_SIZE] = {0};
 static uint8_t response_len                = 0;
 
-void si_write_bytes(const uint8_t *data, uint8_t length, si_callback_fn callback)
+void si_write_bytes(const uint8_t *data, uint8_t length, si_complete_cb_t callback)
 {
   memcpy(response_buf, data, length);
   response_len = length;
 }
 
-void si_read_command(uint8_t *data, si_callback_fn callback)
+void si_read_bytes(uint8_t *buffer, uint8_t max_length, si_byte_cb_t byte_callback, si_complete_cb_t complete_callback)
 {
 }
 
 // Simulate receiving a command
 static int simulate_command(struct si_device_gc_controller *device, uint8_t *command)
 {
-  si_command_handler_fn handler = si_command_get_handler(command[0]);
-  return handler(command, NULL, device);
+  struct si_command *cmd = si_command_find_by_id(command[0]);
+  return cmd->handler(command, NULL, device);
 }
 
 // Test that the device info response is correct for a standard GameCube controller

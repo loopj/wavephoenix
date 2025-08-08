@@ -8,7 +8,7 @@
 
 #include "dmadrv.h"
 
-#include "si/commands.h"
+#include "si/device/commands.h"
 
 #ifdef __ZEPHYR__
 #include <zephyr/irq.h>
@@ -96,8 +96,9 @@ static unsigned int tx_dma_channel;
 // Transfer state
 static struct {
   uint8_t *data;
-  uint8_t length;
-  si_callback_fn callback;
+  uint8_t max_length;
+  si_byte_cb_t byte_callback;
+  si_complete_cb_t complete_callback;
 } si_xfer;
 
 // RX LDMA configuration
@@ -147,12 +148,13 @@ void si_init(uint8_t port, uint8_t pin, uint8_t mode, uint32_t rx_freq, uint32_t
   si_mode      = mode;
 }
 
-void si_write_bytes(const uint8_t *bytes, uint8_t length, si_callback_fn callback)
+void si_write_bytes(const uint8_t *bytes, uint8_t length, si_complete_cb_t callback)
 {
   // Save the transfer state
-  si_xfer.data     = (uint8_t *)bytes;
-  si_xfer.length   = length;
-  si_xfer.callback = callback;
+  si_xfer.data              = (uint8_t *)bytes;
+  si_xfer.max_length        = length;
+  si_xfer.byte_callback     = NULL;
+  si_xfer.complete_callback = callback;
 
   // Convert the bytes to appropriate line coding and add to the buffer
   uint8_t *buf_ptr = tx_buffer;
@@ -169,12 +171,13 @@ void si_write_bytes(const uint8_t *bytes, uint8_t length, si_callback_fn callbac
   DMADRV_LdmaStartTransfer(tx_dma_channel, &ldma_tx_config, ldma_tx_descriptors, NULL, NULL);
 }
 
-void si_read_bytes(uint8_t *buffer, uint8_t length, si_callback_fn callback)
+void si_read_bytes(uint8_t *buffer, uint8_t max_length, si_byte_cb_t byte_callback, si_complete_cb_t complete_callback)
 {
   // Save the transfer state
-  si_xfer.data     = buffer;
-  si_xfer.length   = length;
-  si_xfer.callback = callback;
+  si_xfer.data              = buffer;
+  si_xfer.max_length        = max_length;
+  si_xfer.byte_callback     = byte_callback;
+  si_xfer.complete_callback = complete_callback;
 
   // Clear the RX buffer
   while (TIMER_CaptureGet(SI_RX_TIMER, 0))
@@ -187,11 +190,6 @@ void si_read_bytes(uint8_t *buffer, uint8_t length, si_callback_fn callback)
   DMADRV_LdmaStartTransfer(rx_dma_channel, &ldma_rx_config, ldma_rx_descriptors, ldma_callback_rx, NULL);
 }
 
-void si_read_command(uint8_t *buffer, si_callback_fn callback)
-{
-  si_read_bytes(buffer, 0, callback);
-}
-
 void si_await_bus_idle(void)
 {
   // Start the timer
@@ -199,6 +197,7 @@ void si_await_bus_idle(void)
 
   while (1) {
     // Wait for the line to go high
+    // TODO: Add a timeout
     while (GPIO_PinInGet(si_data_port, si_data_pin) == 0)
       ;
 
@@ -206,6 +205,7 @@ void si_await_bus_idle(void)
     TIMER_CounterSet(SI_RX_TIMER, 0);
 
     // Wait for either the bus idle period to elapse or line to go low
+    // TODO: Add a timeout
     while (GPIO_PinInGet(si_data_port, si_data_pin) == 1) {
       if (TIMER_CounterGet(SI_RX_TIMER) >= rx_bus_idle_period)
         goto idle_detected;
@@ -340,32 +340,20 @@ static bool ldma_callback_rx(unsigned int chan, unsigned int iteration, void *us
   // Process the received pulses into the byte buffer
   decode_edge_timings(&si_xfer.data[byte_idx], rx_edge_timings[byte_idx % 2]);
 
-  // If this is the first byte, determine how many bytes are expected
-  if (si_xfer.length == 0 && iteration == 1) {
-    si_xfer.length = si_command_get_length(si_xfer.data[0]);
-
-    // Unknown command, stop the transfer
-    if (si_xfer.length == 0) {
-      // Don't clock in any more data
-      TIMER_Enable(SI_RX_TIMER, false);
-
-      // Call the transfer callback if one is set
-      if (si_xfer.callback)
-        si_xfer.callback(-SI_ERR_UNKNOWN_COMMAND);
-
-      // Stop the LDMA chain
-      return false;
-    }
+  // Call the byte callback if provided
+  bool continue_transfer = true;
+  if (si_xfer.byte_callback) {
+    continue_transfer = si_xfer.byte_callback(si_xfer.data[byte_idx], byte_idx);
   }
 
-  // We have all the bytes we expected
-  if (iteration == si_xfer.length) {
-    // Don't clock in any more data
+  // If we have reached the maximum length, stop the transfer
+  if (!continue_transfer || byte_idx == si_xfer.max_length - 1) {
+    // Stop the timer
     TIMER_Enable(SI_RX_TIMER, false);
 
-    // Call the transfer callback if one is set
-    if (si_xfer.callback)
-      si_xfer.callback(0);
+    // Call the complete callback if provided
+    if (si_xfer.complete_callback)
+      si_xfer.complete_callback(byte_idx + 1);
 
     // Stop the LDMA chain
     return false;
@@ -382,7 +370,7 @@ void SI_TX_USART_IRQHandler()
   uint32_t flags = USART_IntGet(SI_TX_USART);
   USART_IntClear(SI_TX_USART, flags);
 
-  // Call the transfer callback if one is set
-  if (si_xfer.callback)
-    si_xfer.callback(0);
+  // Call the transfer callback with the number of bytes written
+  if (si_xfer.complete_callback)
+    si_xfer.complete_callback(si_xfer.max_length);
 }

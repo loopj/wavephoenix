@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "si.h"
+#include "si/si.h"
 
 /**
  * Function type for command handlers.
@@ -14,42 +14,45 @@
  *
  * @return 0 on success, negative error code on failure
  */
-typedef int (*si_command_handler_fn)(const uint8_t *command, si_callback_fn callback, void *context);
+typedef int (*si_command_handler_fn)(const uint8_t *command, si_complete_cb_t callback, void *context);
+
+/**
+ * Command structure representing a registered command.
+ */
+struct si_command {
+  uint8_t command;
+  uint8_t length;
+  si_command_handler_fn handler;
+  void *user_data;
+};
 
 /**
  * Register a command handler for commands from an SI host.
  *
  * @param command the command to handle
- * @param command_length the length of the command
+ * @param command_length the length of the command in bytes
  * @param handler the command handler function
  *
  */
 void si_command_register(uint8_t command, uint8_t length, si_command_handler_fn handler, void *context);
 
 /**
- * Get the expected length of an SI command.
+ * Look up a command structure by command ID.
  *
- * @param command the command to check
+ * @param command the command ID to look up
  *
- * @return the expected length of the command, in bytes, or 0 if the command is unknown
+ * @return pointer to the command structure, or NULL if not found
  */
-uint8_t si_command_get_length(uint8_t command);
+struct si_command *si_command_find_by_id(uint8_t command);
 
 /**
- * Get the command handler for an SI command.
+ * Process a single SI command on the bus.
  *
- * @param command the command to check
+ * This will read a command from the SI bus and call the registered handler.
  *
- * @return the command handler function, or NULL if the command is unknown
+ * @param await_bus_idle if true, will wait for the SI bus to be idle before reading commands
  */
-si_command_handler_fn si_command_get_handler(uint8_t command);
-
-/**
- * Process an SI command.
- *
- *
- */
-void si_command_process();
+void si_command_process(bool await_bus_idle);
 
 /**
  * Enable automatic command processing.
