@@ -116,7 +116,7 @@ static int handle_short_poll(const uint8_t *command, si_complete_cb_t callback, 
   uint8_t analog_mode = command[1] & 0x07;
   uint8_t motor_state = command[2] & 0x03;
 
-  if (!(device->info[0] & SI_GC_WIRELESS)) {
+  if (!si_device_gc_is_wireless(device)) {
     // Update the origin flags
     device->input.buttons.need_origin = (device->info[2] & SI_NEED_ORIGIN) != 0;
     device->input.buttons.use_origin  = true;
@@ -155,7 +155,7 @@ static int handle_read_origin(const uint8_t *command, si_complete_cb_t callback,
   struct si_device_gc_controller *device = (struct si_device_gc_controller *)context;
 
   // Tell the host it no longer needs to fetch the origin
-  if (!(device->info[0] & SI_GC_WIRELESS)) {
+  if (!si_device_gc_is_wireless(device)) {
     device->info[2] &= ~SI_NEED_ORIGIN;
   }
 
@@ -187,7 +187,7 @@ static int handle_calibrate(const uint8_t *command, si_complete_cb_t callback, v
   device->origin.trigger_right = device->input.trigger_right;
 
   // Tell the host it no longer needs to fetch the origin
-  if (!(device->info[0] & SI_GC_WIRELESS)) {
+  if (!si_device_gc_is_wireless(device)) {
     device->info[2] &= ~SI_NEED_ORIGIN;
   }
 
@@ -218,7 +218,7 @@ static int handle_long_poll(const uint8_t *command, si_complete_cb_t callback, v
   device->input.buttons.use_origin  = true;
 
   // Save the analog mode and motor state
-  if (!(device->info[0] & SI_GC_WIRELESS)) {
+  if (!si_device_gc_is_wireless(device)) {
     device->info[2] &= ~(SI_MOTOR_STATE_MASK | SI_ANALOG_MODE_MASK);
     device->info[2] |= motor_state << 3 | analog_mode;
   }
@@ -297,7 +297,7 @@ void si_device_gc_init(struct si_device_gc_controller *device, uint8_t type)
   device->input_valid = true;
 
   // Request the origin on non-wireless controllers
-  if (!(type & SI_GC_WIRELESS))
+  if (!si_device_gc_is_wireless(device))
     device->info[2] = SI_NEED_ORIGIN;
 
   // Register the SI commands handled by GameCube controllers
@@ -309,7 +309,7 @@ void si_device_gc_init(struct si_device_gc_controller *device, uint8_t type)
   si_command_register(SI_CMD_GC_LONG_POLL, SI_CMD_GC_LONG_POLL_LEN, handle_long_poll, device);
 
   // Register additional commands handled by WaveBird receivers
-  if (type & SI_GC_WIRELESS) {
+  if (si_device_gc_is_wireless(device)) {
     si_command_register(SI_CMD_GC_PROBE_DEVICE, SI_CMD_GC_PROBE_DEVICE_LEN, handle_probe_device, device);
     si_command_register(SI_CMD_GC_FIX_DEVICE, SI_CMD_GC_FIX_DEVICE_LEN, handle_fix_device, device);
   }
@@ -340,5 +340,6 @@ void si_device_gc_set_wireless_origin(struct si_device_gc_controller *device, ui
   }
 
   // Set the "has wireless origin" flag in the device info
-  device->info[1] |= SI_WIRELESS_ORIGIN;
+  if (si_device_gc_is_wireless(device))
+    device->info[1] |= SI_WIRELESS_ORIGIN;
 }
