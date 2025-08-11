@@ -68,6 +68,22 @@ static uint8_t *pack_input_state(struct si_device_gc_input_state *src, uint8_t a
   return packed_state;
 }
 
+// Set or clear the "need origin" flag in the input state and device info
+static void set_need_origin(struct si_device_gc_controller *device, bool need_origin)
+{
+  // Always set the need_origin flag in the input state
+  device->input.buttons.need_origin = need_origin;
+
+  // Also update the device info for non-wireless controllers
+  if (!si_device_gc_is_wireless(device)) {
+    if (need_origin) {
+      device->info[2] |= SI_NEED_ORIGIN;
+    } else {
+      device->info[2] &= ~SI_NEED_ORIGIN;
+    }
+  }
+}
+
 /**
  * Handle "info" commands.
  *
@@ -118,8 +134,7 @@ static int handle_short_poll(const uint8_t *command, si_complete_cb_t callback, 
 
   if (!si_device_gc_is_wireless(device)) {
     // Update the origin flags
-    device->input.buttons.need_origin = (device->info[2] & SI_NEED_ORIGIN) != 0;
-    device->input.buttons.use_origin  = true;
+    device->input.buttons.use_origin = true;
 
     // Save the analog mode and motor state
     device->info[2] &= ~(SI_MOTOR_STATE_MASK | SI_ANALOG_MODE_MASK);
@@ -154,13 +169,8 @@ static int handle_read_origin(const uint8_t *command, si_complete_cb_t callback,
 {
   struct si_device_gc_controller *device = (struct si_device_gc_controller *)context;
 
-  // Tell the host it no longer needs to fetch the origin
-  if (!si_device_gc_is_wireless(device)) {
-    device->info[2] &= ~SI_NEED_ORIGIN;
-  }
-
   // Clear the "need origin" flag
-  device->input.buttons.need_origin = false;
+  set_need_origin(device, false);
 
   // Respond with the origin
   si_write_bytes((uint8_t *)(&device->origin), SI_CMD_GC_READ_ORIGIN_RESP, callback);
@@ -186,10 +196,8 @@ static int handle_calibrate(const uint8_t *command, si_complete_cb_t callback, v
   device->origin.trigger_left  = device->input.trigger_left;
   device->origin.trigger_right = device->input.trigger_right;
 
-  // Tell the host it no longer needs to fetch the origin
-  if (!si_device_gc_is_wireless(device)) {
-    device->info[2] &= ~SI_NEED_ORIGIN;
-  }
+  // Clear the "need origin" flag
+  set_need_origin(device, false);
 
   // Respond with the new origin
   si_write_bytes((uint8_t *)(&device->origin), SI_CMD_GC_CALIBRATE_RESP, callback);
@@ -213,18 +221,20 @@ static int handle_long_poll(const uint8_t *command, si_complete_cb_t callback, v
   uint8_t analog_mode = command[1] & 0x07;
   uint8_t motor_state = command[2] & 0x03;
 
-  // Update the origin flags before responding
-  device->input.buttons.need_origin = (device->info[2] & SI_NEED_ORIGIN) != 0;
-  device->input.buttons.use_origin  = true;
-
-  // Save the analog mode and motor state
   if (!si_device_gc_is_wireless(device)) {
+    // Update the origin flags
+    device->input.buttons.use_origin = true;
+
+    // Save the analog mode and motor state
     device->info[2] &= ~(SI_MOTOR_STATE_MASK | SI_ANALOG_MODE_MASK);
     device->info[2] |= motor_state << 3 | analog_mode;
   }
 
+  // If the input state is valid, use that for the response, otherwise use the origin
+  struct si_device_gc_input_state *state = device->input_valid ? &device->input : &device->origin;
+
   // Respond with the current input state
-  si_write_bytes((uint8_t *)&device->input, SI_CMD_GC_LONG_POLL_RESP, callback);
+  si_write_bytes((uint8_t *)state, SI_CMD_GC_LONG_POLL_RESP, callback);
 
   return SI_CMD_GC_LONG_POLL_RESP;
 }
@@ -296,10 +306,6 @@ void si_device_gc_init(struct si_device_gc_controller *device, uint8_t type)
   // Mark the input as valid initially
   device->input_valid = true;
 
-  // Request the origin on non-wireless controllers
-  if (!si_device_gc_is_wireless(device))
-    device->info[2] = SI_NEED_ORIGIN;
-
   // Register the SI commands handled by GameCube controllers
   si_command_register(SI_CMD_INFO, SI_CMD_INFO_LEN, handle_info, device);
   si_command_register(SI_CMD_RESET, SI_CMD_RESET_LEN, handle_reset, device);
@@ -328,15 +334,15 @@ void si_device_gc_set_wireless_id(struct si_device_gc_controller *device, uint16
   device->info[0] |= SI_GC_STANDARD | SI_WIRELESS_RECEIVED;
 }
 
-void si_device_gc_set_wireless_origin(struct si_device_gc_controller *device, uint8_t *origin_data)
+void si_device_gc_set_origin(struct si_device_gc_controller *device, struct si_device_gc_input_state *new_origin)
 {
   // Check if the origin packet is different from the last known origin
-  if (memcmp(&device->origin.stick_x, origin_data, 6) != 0) {
+  if (memcmp(&device->origin.stick_x, &new_origin->stick_x, 6) != 0) {
     // Update the origin state
-    memcpy(&device->origin.stick_x, origin_data, 6);
+    memcpy(&device->origin.stick_x, &new_origin->stick_x, 6);
 
-    // Set the "need origin" flag to true so the host knows to fetch the new origin
-    device->input.buttons.need_origin = true;
+    // Tell the host that new origin data is available
+    set_need_origin(device, true);
   }
 
   // Set the "has wireless origin" flag in the device info

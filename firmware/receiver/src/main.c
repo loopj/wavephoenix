@@ -218,14 +218,17 @@ static void handle_wavebird_packet(const uint8_t *packet)
     //
 
     // Copy the origin values from the packet
-    uint8_t new_origin[] = {
-        wavebird_origin_get_stick_x(message),      wavebird_origin_get_stick_y(message),
-        wavebird_origin_get_substick_x(message),   wavebird_origin_get_substick_y(message),
-        wavebird_origin_get_trigger_left(message), wavebird_origin_get_trigger_right(message),
+    struct si_device_gc_input_state new_origin = {
+        .stick_x       = wavebird_origin_get_stick_x(message),
+        .stick_y       = wavebird_origin_get_stick_y(message),
+        .substick_x    = wavebird_origin_get_substick_x(message),
+        .substick_y    = wavebird_origin_get_substick_y(message),
+        .trigger_left  = wavebird_origin_get_trigger_left(message),
+        .trigger_right = wavebird_origin_get_trigger_right(message),
     };
 
     // Update the origin state in the SI device
-    si_device_gc_set_wireless_origin(&si_device, new_origin);
+    si_device_gc_set_origin(&si_device, &new_origin);
   }
 }
 

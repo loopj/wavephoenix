@@ -40,7 +40,7 @@ static void test_gcc_info()
   simulate_command(&device, info_command);
 
   // Test device info response is as expected
-  uint8_t expected_response[] = {0x09, 0x00, 0x20};
+  uint8_t expected_response[] = {0x09, 0x00, 0x00};
   TEST_ASSERT_EQUAL(3, response_len);
   TEST_ASSERT_EQUAL_HEX8_ARRAY(expected_response, response_buf, 3);
 }
@@ -52,18 +52,37 @@ static void test_gcc_info_after_read_origin()
   struct si_device_gc_controller device;
   si_device_gc_init(&device, SI_TYPE_GC | SI_GC_STANDARD);
 
-  // Send a read origin command
-  uint8_t read_origin_command[] = {SI_CMD_GC_READ_ORIGIN};
-  simulate_command(&device, read_origin_command);
+  // Set an origin
+  struct si_device_gc_input_state new_origin = {
+      .stick_x       = 0x81,
+      .stick_y       = 0x82,
+      .substick_x    = 0x83,
+      .substick_y    = 0x84,
+      .trigger_left  = 0x11,
+      .trigger_right = 0x12,
+  };
+  si_device_gc_set_origin(&device, &new_origin);
 
   // Send an info command
   uint8_t info_command[] = {SI_CMD_INFO};
   simulate_command(&device, info_command);
 
-  // Verify the "need_origin" flag is not present
-  uint8_t expected_response[] = {0x09, 0x00, 0x00};
+  // Test device info response is as expected
+  uint8_t expected_response[] = {0x09, 0x00, 0x20};
   TEST_ASSERT_EQUAL(3, response_len);
   TEST_ASSERT_EQUAL_HEX8_ARRAY(expected_response, response_buf, 3);
+
+  // Send a read origin command
+  uint8_t read_origin_command[] = {SI_CMD_GC_READ_ORIGIN};
+  simulate_command(&device, read_origin_command);
+
+  // Send another info command
+  simulate_command(&device, info_command);
+
+  // Verify the "need_origin" flag is not present
+  uint8_t expected_response_2[] = {0x09, 0x00, 0x00};
+  TEST_ASSERT_EQUAL(3, response_len);
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(expected_response_2, response_buf, 3);
 }
 
 // Test that "analog mode" and "motor state" are saved after a "poll" command
@@ -283,8 +302,15 @@ static void test_set_wireless_origin(void)
   TEST_ASSERT_EQUAL_HEX8_ARRAY(expected_info_response_2, response_buf, 3);
 
   // Set the wireless origin
-  uint8_t origin_data[] = {0x85, 0x86, 0x87, 0x88, 0x11, 0x12};
-  si_device_gc_set_wireless_origin(&device, origin_data);
+  struct si_device_gc_input_state origin = {
+      .stick_x       = 0x85,
+      .stick_y       = 0x86,
+      .substick_x    = 0x87,
+      .substick_y    = 0x88,
+      .trigger_left  = 0x11,
+      .trigger_right = 0x12,
+  };
+  si_device_gc_set_origin(&device, &origin);
 
   // Check the origin state is set correctly
   TEST_ASSERT_EQUAL_UINT8(0x85, device.origin.stick_x);
