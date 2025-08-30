@@ -146,3 +146,8 @@ void si_read_bytes(uint8_t *buffer, uint8_t max_length, si_byte_cb_t byte_callba
  * This function will block until the SI bus is idle.
  */
 void si_await_bus_idle(void);
+
+/**
+ * Deinitialize the SI bus.
+ */
+void si_deinit(void);

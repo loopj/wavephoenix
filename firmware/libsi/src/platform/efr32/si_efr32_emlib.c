@@ -82,6 +82,7 @@
 static uint8_t si_data_port;
 static uint8_t si_data_pin;
 static bool si_mode;
+static bool si_initialized = false;
 
 // RX state
 static uint16_t rx_edge_timings[2][RX_BUFFER_SIZE];
@@ -146,6 +147,8 @@ void si_init(uint8_t port, uint8_t pin, uint8_t mode, uint32_t rx_freq, uint32_t
   si_data_port = port;
   si_data_pin  = pin;
   si_mode      = mode;
+
+  si_initialized = true;
 }
 
 void si_write_bytes(const uint8_t *bytes, uint8_t length, si_complete_cb_t callback)
@@ -373,4 +376,30 @@ void SI_TX_USART_IRQHandler()
   // Call the transfer callback with the number of bytes written
   if (si_xfer.complete_callback)
     si_xfer.complete_callback(si_xfer.max_length);
+}
+
+// Deinitialize SI peripherals
+void si_deinit(void)
+{
+  if (!si_initialized)
+    return;
+
+  // Disable timers
+  TIMER_Enable(SI_RX_TIMER, false);
+
+  // Disable USART
+  USART_Enable(SI_TX_USART, usartDisable);
+
+  // Free DMA channels
+  DMADRV_FreeChannel(rx_dma_channel);
+  DMADRV_FreeChannel(tx_dma_channel);
+
+  // Remove peripheral routes
+  GPIO->TIMERROUTE[SI_RX_TIMER_IDX].ROUTEEN = 0;
+  GPIO->USARTROUTE[SI_TX_USART_IDX].ROUTEEN = 0;
+
+  // Reset GPIO pin to input (safe state)
+  GPIO_PinModeSet(si_data_port, si_data_pin, gpioModeInput, 0);
+
+  si_initialized = false;
 }
