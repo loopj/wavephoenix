@@ -1,0 +1,3 @@
+name: libsi
+build:
+  cmake: zephyr
