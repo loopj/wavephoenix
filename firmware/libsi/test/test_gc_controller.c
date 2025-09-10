@@ -329,6 +329,35 @@ static void test_set_wireless_origin(void)
   TEST_ASSERT_EQUAL_HEX8_ARRAY(expected_info_response_3, response_buf, 3);
 }
 
+// Test that the probe device response is correct, and ignored after setting the wireless ID
+static void test_wavebird_probe_response()
+{
+  int rc;
+
+  // Initialize as a WaveBird receiver
+  struct si_device_gc_controller device;
+  si_device_gc_init(&device, SI_TYPE_GC | SI_GC_WIRELESS | SI_GC_NOMOTOR);
+
+  // Send a probe command
+  uint8_t probe_command[] = {SI_CMD_GC_PROBE_DEVICE, 0x00, 0x00};
+  rc                      = simulate_command(&device, probe_command);
+
+  // Test probe response is as expected
+  uint8_t expected_probe_response[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  TEST_ASSERT_EQUAL(8, rc);
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(expected_probe_response, response_buf, 8);
+
+  // Set a 10-bit wireless ID
+  si_device_gc_set_wireless_id(&device, 0x2B1);
+  TEST_ASSERT_EQUAL(0x2B1, si_device_gc_get_wireless_id(&device));
+
+  // Send another probe command
+  rc = simulate_command(&device, probe_command);
+
+  // Test probe response is ignored after setting wireless ID
+  TEST_ASSERT_EQUAL(0, rc);
+}
+
 void test_gc_controller(void)
 {
   Unity.TestFile = __FILE_NAME__;
@@ -343,4 +372,5 @@ void test_gc_controller(void)
   RUN_TEST(test_set_wireless_id_when_fixed);
   RUN_TEST(test_wavebird_fix_device_without_wireless_id);
   RUN_TEST(test_set_wireless_origin);
+  RUN_TEST(test_wavebird_probe_response);
 }
