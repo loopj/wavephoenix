@@ -157,9 +157,11 @@ static inline void si_device_set_input_valid(struct si_device_gc_controller *dev
 }
 
 /**
- * Update the origin of the controller, based on an origin packet.
+ * Update the origin of the controller.
+ *
+ * If the origin data differs from the current origin, the "need origin" flag is set.
  *
  * @param device the device to set the wireless origin for
- * @param origin_data pointer to the analog origin data (6 bytes)
+ * @param new_origin pointer to the new origin data
  */
-void si_device_gc_set_wireless_origin(struct si_device_gc_controller *device, uint8_t *origin_data);
+void si_device_gc_set_origin(struct si_device_gc_controller *device, struct si_device_gc_input_state *new_origin);
