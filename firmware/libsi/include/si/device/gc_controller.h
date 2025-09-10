@@ -7,6 +7,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "si/si.h"
+
 /**
  * Rumble motor states.
  */
@@ -91,6 +93,18 @@ struct si_device_gc_controller {
  * @param input_state pointer to an input state buffer
  */
 void si_device_gc_init(struct si_device_gc_controller *device, uint8_t type);
+
+/**
+ * Check if the device is a WaveBird controller.
+ *
+ * @param device the device to check
+ *
+ * @return true if the device is a WaveBird controller
+ */
+static inline bool si_device_gc_is_wireless(struct si_device_gc_controller *device)
+{
+  return device->info[0] & SI_GC_WIRELESS;
+}
 
 /**
  * Set the wireless ID of the controller.
