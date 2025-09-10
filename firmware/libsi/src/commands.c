@@ -75,9 +75,16 @@ static void on_rx_complete(int result)
     struct command_entry *command = &command_table[command_buffer[0]];
     if (command->handler) {
       // Call the command handler
-      command_state = COMMAND_STATE_TX;
-      command->handler(command_buffer, on_tx_complete, command->context);
-      return;
+      int rc = command->handler(command_buffer, on_tx_complete, command->context);
+      if (rc > 0) {
+        // Response will be sent asynchronously, wait for TX complete callback
+        command_state = COMMAND_STATE_TX;
+        return;
+      } else if (rc == 0) {
+        // No response sent, immediately go back to idle
+        command_state = COMMAND_STATE_IDLE;
+        return;
+      }
     }
   }
 

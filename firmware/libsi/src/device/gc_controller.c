@@ -242,14 +242,25 @@ static int handle_long_poll(const uint8_t *command, si_callback_fn callback, voi
 /**
  * Handle "probe device" commands.
  *
- * I'm currently unclear what this command is used for. The command always seems to return
- * 8 bytes of zeroes, regardless of the command parameters, so that's what we do here.
+ * Probe device is exclusively used by "launch window" games, I'm assuming to detect
+ * capabilities of wireless controllers that were never actually released. Later games
+ * will just use the "info" command to detect if a controller is wireless.
+ *
+ * An OEM WaveBird receiver will respond to this command with 8 bytes of zeroes until
+ * it has received packets from a controller, at which point it will ignore further
+ * probe commands.
  *
  * Command:         {0x4D, 0x??, 0x??} - 2nd and 3rd bytes seem to differ every time
  * Response:        8 bytes of zeroes.
  */
 static int handle_probe_device(const uint8_t *command, si_callback_fn callback, void *context)
 {
+  struct si_device_gc_controller *device = (struct si_device_gc_controller *)context;
+
+  // Don't respond to probe commands if we already received data from a controller
+  if (device->info[0] & SI_WIRELESS_RECEIVED)
+    return 0;
+
   // Respond with 8 bytes of zeroes
   uint8_t response[8] = {0};
   si_write_bytes(response, SI_CMD_GC_PROBE_DEVICE_RESP, callback);
