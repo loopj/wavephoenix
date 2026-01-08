@@ -15,6 +15,10 @@ provides:
 
 include:
   - path: include
+  - path: src/platform/efr32/efr32xg1
+    condition: [device_generic_family_efr32xg1]
+  - path: src/platform/efr32/efr32xg14
+    condition: [device_generic_family_efr32xg14]
   - path: src/platform/efr32/efr32xg22
     condition: [device_generic_family_efr32xg22]
 
@@ -22,5 +26,9 @@ source:
   - path: src/bch3121.c
   - path: src/packet.c
   - path: src/platform/efr32/radio_efr32.c
+  - path: src/platform/efr32/efr32xg1/rail_config.c
+    condition: [device_generic_family_efr32xg1]
+  - path: src/platform/efr32/efr32xg14/rail_config.c
+    condition: [device_generic_family_efr32xg14]
   - path: src/platform/efr32/efr32xg22/rail_config.c
     condition: [device_generic_family_efr32xg22]

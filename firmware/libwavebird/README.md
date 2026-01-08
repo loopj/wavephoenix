@@ -1,12 +1,18 @@
 # libwavebird
 
-An open source implementation of the WaveBird protocol.
+An open source implementation of the WaveBird protocol for Silicon Labs Gecko SoCs.
 
 Currently supports Silicon Labs Gecko Series 1 and Series 2 SoCs. Tested with the EFR32FG1, EFR32FG14, EFR32MG22, and EFR32BG22 SoCs.
 
 ## Adding support for additional Gecko SoCs
 
 In theory this library should work with any Gecko Series 1 or Series 2 SoC that has proprietary 2.4GHz support. A `.radioconf` file for that platform will need to be created in `config/rail`.
+
+## Generating `rail_config` files
+
+The `rail_config.c` and `rail_config.h` files are generated from `.radioconf` files using the Silicon Labs multiphy configurator script.
+
+To regenerate the files, run `scripts/generate_rail_config.py`.
 
 ## Adding support for additional platforms
 
