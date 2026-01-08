@@ -20,6 +20,9 @@ component:
   - id: libwavebird
     from: libwavebird
 
+include:
+  - path: src
+
 source:
   - path: src/button.c
   - path: src/channel_wheel.c
@@ -30,3 +33,7 @@ source:
 configuration:
   - name: SL_BOARD_ENABLE_VCOM
     value: 1
+
+define:
+  - name: APP_PROPERTIES_CONFIG_FILE
+    value: '"app_properties.h"'
