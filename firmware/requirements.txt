@@ -1,4 +1,0 @@
-jinja2
-numpy
-pyyaml
-scipy
