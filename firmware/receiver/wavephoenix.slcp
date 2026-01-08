@@ -1,0 +1,32 @@
+project_name: wavephoenix
+description: WavePhoenix
+quality: production
+
+sdk:
+  id: simplicity_sdk
+  version: 2025.6.2
+
+component:
+  - id: clock_manager
+  - id: device_init
+  - id: sl_main
+  - id: sl_main_custom_main
+  - id: apploader
+  - id: bootloader_interface
+  - id: gpiointerrupt
+  - id: emlib
+  - id: libsi
+    from: libsi
+  - id: libwavebird
+    from: libwavebird
+
+source:
+  - path: src/button.c
+  - path: src/channel_wheel.c
+  - path: src/led.c
+  - path: src/main.c
+  - path: src/settings.c
+
+configuration:
+  - name: SL_BOARD_ENABLE_VCOM
+    value: 1

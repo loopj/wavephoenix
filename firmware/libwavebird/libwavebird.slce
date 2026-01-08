@@ -1,0 +1,10 @@
+id: libwavebird
+label: libwavebird
+version: 1.0.0
+
+sdk:
+  id: simplicity_sdk
+  version: 2025.6.2
+
+component_path:
+  - path: .

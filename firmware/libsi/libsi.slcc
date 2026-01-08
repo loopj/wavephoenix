@@ -1,0 +1,23 @@
+id: libsi
+label: libsi
+package: "ext-comp"
+description: >
+  Implementation of the Joybus protocol used by N64 and GameCube controllers.
+category: External
+quality: production
+
+provides:
+  - name: libsi
+
+requires:
+  - name: emlib
+  - name: dmadrv
+
+include:
+  - path: include
+
+source:
+  - path: src/commands.c
+  - path: src/crc8.c
+  - path: src/device/gc_controller.c
+  - path: src/platform/efr32/si_efr32.c

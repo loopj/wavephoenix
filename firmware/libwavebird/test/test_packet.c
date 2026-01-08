@@ -7,6 +7,14 @@
 
 #include "fixtures.h"
 
+void setUp(void)
+{
+}
+
+void tearDown(void)
+{
+}
+
 static void test_deinterleave()
 {
   uint32_t codewords[4] = {0};
@@ -224,9 +232,9 @@ static void test_encode_decode()
   TEST_ASSERT_EQUAL_HEX8_ARRAY(message_input_state_resting, message, WAVEBIRD_MESSAGE_BYTES);
 }
 
-void test_packet(void)
+int main(int argc, char **argv)
 {
-  Unity.TestFile = __FILE_NAME__;
+  UNITY_BEGIN();
 
   RUN_TEST(test_deinterleave);
   RUN_TEST(test_interleave);
@@ -240,4 +248,6 @@ void test_packet(void)
   RUN_TEST(test_decode_failure);
   RUN_TEST(test_decode_crc_mismatch);
   RUN_TEST(test_encode_decode);
+
+  return UNITY_END();
 }

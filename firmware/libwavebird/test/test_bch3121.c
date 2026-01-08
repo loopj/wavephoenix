@@ -5,6 +5,14 @@
 static const uint32_t valid_codeword = 0x0394a9d0;
 static const uint32_t valid_message  = 0x00015620;
 
+void setUp(void)
+{
+}
+
+void tearDown(void)
+{
+}
+
 // Test bch3121_decode decodes a valid codeword
 static void test_decode()
 {
@@ -85,9 +93,9 @@ static void test_encode_decode()
   TEST_ASSERT_EQUAL_HEX32(0x12345, message);
 }
 
-void test_bch3121(void)
+int main(int argc, char **argv)
 {
-  Unity.TestFile = __FILE_NAME__;
+  UNITY_BEGIN();
 
   RUN_TEST(test_decode);
   RUN_TEST(test_decode_failure);
@@ -96,4 +104,6 @@ void test_bch3121(void)
   RUN_TEST(test_decode_correct_triple_error);
   RUN_TEST(test_encode);
   RUN_TEST(test_encode_decode);
+
+  return UNITY_END();
 }

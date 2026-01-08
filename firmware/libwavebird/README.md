@@ -16,14 +16,14 @@ I currently don't know of any other SoCs which support the WaveBird's FSK+DSSS 1
 
 ## Running tests
 
-- Build the test suite
+Build the test suite
 
-    ```bash
-    cmake -Bbuild && cmake --build build --target test_wavebird
-    ```
+```bash
+cmake -Bbuild && cmake --build build
+```
 
-- Run the tests
+Run the tests
 
-    ```bash
-    ./build/test/test_wavebird
-    ```
+```bash
+ctest --test-dir build --output-on-failure
+```

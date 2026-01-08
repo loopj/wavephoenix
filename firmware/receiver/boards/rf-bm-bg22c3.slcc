@@ -1,0 +1,31 @@
+id: rf-bm-bg22c3
+label: rf-bm-bg22c3
+package: "ext-comp"
+description: WavePhoenix board support for RF-BM-BG22C3
+category: External
+quality: production
+
+requires:
+  - name: efr32bg22c224f512gm32
+
+define:
+  - name: SI_DATA_PORT
+    value: gpioPortA
+  - name: SI_DATA_PIN
+    value: 2
+  - name: HAS_PAIR_BTN
+    value: 1
+  - name: PAIR_BTN_PORT
+    value: gpioPortB
+  - name: PAIR_BTN_PIN
+    value: 0
+  - name: HAS_STATUS_LED
+    value: 1
+  - name: STATUS_LED_PORT
+    value: gpioPortC
+  - name: STATUS_LED_PIN
+    value: 1
+  - name: STATUS_LED_INVERT
+    value: 0
+  - name: SL_CLOCK_MANAGER_HFXO_CTUNE
+    value: 72

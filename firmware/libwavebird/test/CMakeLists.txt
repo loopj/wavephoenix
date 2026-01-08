@@ -5,8 +5,18 @@ if(NOT unity_FOUND)
   FetchContent_MakeAvailable(Unity)
 endif()
 
-# Define the test and set the sources
-add_executable(test_wavebird "test_main.c" "test_bch3121.c" "test_packet.c")
+# Helper function to create a test
+function(add_libwavebird_test TEST_NAME)
+  # Create the test executable
+  add_executable(${TEST_NAME} ${ARGN})
 
-# Link dependencies
-target_link_libraries(test_wavebird wavebird unity::framework)
+  # Link against the wavebird library and Unity
+  target_link_libraries(${TEST_NAME} wavebird unity::framework)
+
+  # Add the test to CTest
+  add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
+endfunction()
+
+# GameCube controller target tests
+add_libwavebird_test(test_bch3121 test_bch3121.c)
+add_libwavebird_test(test_packet test_packet.c)
