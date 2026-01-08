@@ -293,6 +293,21 @@ static void handle_pairing_finished(uint8_t status, uint8_t channel)
   }
 }
 
+// Get a printable name for the controller type
+static const char *get_controller_type_name(uint8_t type)
+{
+  switch (type) {
+    case WP_CONT_TYPE_GC_WAVEBIRD:
+      return "WaveBird";
+    case WP_CONT_TYPE_GC_WIRED:
+      return "Wired GameCube";
+    case WP_CONT_TYPE_GC_WIRED_NOMOTOR:
+      return "Wired GameCube (no motor)";
+    default:
+      return "Unknown";
+  }
+}
+
 // Qualify a WaveBird packet during pairing
 static bool qualify_packet(const uint8_t *packet)
 {
@@ -385,9 +400,7 @@ int main(void)
   printf("WavePhoenix receiver ready!\n");
   printf("- Firmware version: %d.%d.%d\n", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH);
   printf("- Radio channel:    %u\n", settings.chan + 1);
-  printf("- Controller type:  %s\n", (settings.cont_type == WP_CONT_TYPE_GC_WAVEBIRD) ? "WaveBird"
-                                     : (settings.cont_type == WP_CONT_TYPE_GC_WIRED)  ? "Wired"
-                                                                                      : "Wired (no motor)");
+  printf("- Controller type:  %s\n", get_controller_type_name(settings.cont_type));
   printf("\n");
 
   // Wait for the SI bus to be idle before starting the main loop
