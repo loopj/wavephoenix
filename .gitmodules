@@ -1,0 +1,3 @@
+[submodule "firmware/libwavebird"]
+	path = firmware/libwavebird
+	url = https://github.com/loopj/libwavebird.git
