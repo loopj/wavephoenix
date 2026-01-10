@@ -15,8 +15,8 @@ component:
   - id: bootloader_interface
   - id: gpiointerrupt
   - id: emlib
-  - id: libsi
-    from: libsi
+  - id: libjoybus
+    from: libjoybus
   - id: libwavebird
     from: libwavebird
 

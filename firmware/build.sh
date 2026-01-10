@@ -10,7 +10,7 @@ fi
 rm -rf target/$BOARD
 
 # Generate the CMake project for the specified board
-slc generate wavephoenix.slcp --with "$BOARD;wavephoenix" --export-destination target/$BOARD --output-type cmake --sdk-extensions=.,libsi,libwavebird
+slc generate wavephoenix.slcp --with "$BOARD;wavephoenix" --export-destination target/$BOARD --output-type cmake --sdk-extensions=.,libjoybus,libwavebird
 
 # Build the project
 cd target/$BOARD/wavephoenix_cmake

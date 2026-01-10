@@ -12,10 +12,14 @@ requires:
   - name: printf
 
 define:
-  - name: SI_DATA_PORT
+  - name: JOYBUS_PORT
     value: gpioPortD
-  - name: SI_DATA_PIN
+  - name: JOYBUS_PIN
     value: 3
+  - name: JOYBUS_TIMER
+    value: TIMER1
+  - name: JOYBUS_USART
+    value: USART0
   - name: HAS_PAIR_BTN
     value: 1
   - name: PAIR_BTN_PORT

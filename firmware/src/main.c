@@ -6,8 +6,8 @@
 #include "em_gpio.h"
 #include "sl_main_init.h"
 
-#include "si/commands.h"
-#include "si/device/gc_controller.h"
+#include <joybus/backend/gecko.h>
+#include <joybus/joybus.h>
 
 #include <wavebird/wavebird.h>
 
@@ -73,9 +73,10 @@ struct {
   uint8_t _reserved;
 } packet_stats = {0};
 
-// SI state
-static struct si_device_gc_controller si_device = {0};
-static bool enable_si_command_handling          = true;
+// Joybus state
+static struct joybus_gecko joybus_gecko;
+static struct joybus_gc_controller joybus_gc_controller;
+static struct joybus *joybus = JOYBUS(&joybus_gecko);
 
 // Buttons, switches, and LEDs
 static struct led *status_led              = NULL;
@@ -101,16 +102,18 @@ void SysTick_Handler(void)
 // Initialize (or reinitialize) as a controller on the SI bus
 static void initialize_controller(uint8_t controller_type)
 {
-  if (controller_type == WP_CONT_TYPE_GC_WAVEBIRD) {
-    // Present as an OEM WaveBird receiver
-    si_device_gc_init(&si_device, SI_TYPE_GC | SI_GC_WIRELESS | SI_GC_NOMOTOR);
-    enable_si_command_handling = true;
-  } else if (controller_type == WP_CONT_TYPE_GC_WIRED_NOMOTOR) {
-    // Present as a wired GameCube controller without rumble
-    si_device_gc_init(&si_device, SI_TYPE_GC | SI_GC_STANDARD | SI_GC_NOMOTOR);
-  } else if (controller_type == WP_CONT_TYPE_GC_WIRED) {
-    // Present as an OEM wired GameCube controller
-    si_device_gc_init(&si_device, SI_TYPE_GC | SI_GC_STANDARD);
+  switch (controller_type) {
+    case WP_CONT_TYPE_GC_WIRED:
+      joybus_gc_controller_init(&joybus_gc_controller, JOYBUS_GAMECUBE_CONTROLLER);
+      break;
+    case WP_CONT_TYPE_GC_WIRED_NOMOTOR:
+      joybus_gc_controller_init(&joybus_gc_controller, JOYBUS_GAMECUBE_CONTROLLER | JOYBUS_ID_GCN_NO_MOTOR);
+      break;
+    default:
+      printf("Unknown controller type '%d', defaulting to WaveBird", controller_type);
+    case WP_CONT_TYPE_GC_WAVEBIRD:
+      joybus_gc_controller_init(&joybus_gc_controller, JOYBUS_WAVEBIRD_RECEIVER);
+      break;
   }
 }
 
@@ -160,13 +163,13 @@ static void handle_wavebird_packet(const uint8_t *packet)
     // Check the controller id is as expected
     if (settings.cont_type == WP_CONT_TYPE_GC_WAVEBIRD) {
       // Implement wireless ID pinning exactly as OEM WaveBird receivers do
-      if (si_device_gc_wireless_id_fixed(&si_device)) {
+      if (joybus_gc_controller_wireless_id_fixed(&joybus_gc_controller)) {
         // Drop packets from other controllers if the ID has been fixed
-        if (si_device_gc_get_wireless_id(&si_device) != wireless_id)
+        if (joybus_gc_controller_get_wireless_id(&joybus_gc_controller) != wireless_id)
           return;
       } else {
         // Set the controller ID if it is not fixed
-        si_device_gc_set_wireless_id(&si_device, wireless_id);
+        joybus_gc_controller_set_wireless_id(&joybus_gc_controller, wireless_id);
       }
     } else {
       // Emulate wireless ID pinning for wired controllers
@@ -191,40 +194,28 @@ static void handle_wavebird_packet(const uint8_t *packet)
     // Handle input state packets
     //
 
-    // Clear the buttons in the SI input state
-    si_device.input.buttons.bytes[0] &= ~0x1F;
-    si_device.input.buttons.bytes[1] &= ~0x7F;
-
     // Copy the buttons from the WaveBird message
-    si_device.input.buttons.bytes[0] |= (message[3] & 0x80) >> 7 | (message[2] & 0x0F) << 1;
-    si_device.input.buttons.bytes[1] |= (message[3] & 0x7F);
+    joybus_gc_controller.input.buttons &= ~JOYBUS_GCN_BUTTON_MASK;
+    joybus_gc_controller.input.buttons |=
+        ((message[3] & 0x80) >> 7) | ((message[2] & 0x0F) << 1) | ((message[3] & 0x7F) << 8);
 
     // Copy the stick, substick, and trigger values
-    memcpy(&si_device.input.stick_x, &message[4], 6);
+    memcpy(&joybus_gc_controller.input.stick_x, &message[4], 6);
 
-    // We have a good input state, enable SI command handling if it was disabled
-    enable_si_command_handling = true;
-
-    // Set the input state as valid
+    // Set the input state as valid, and (re)set the validity timer
+    joybus_gc_controller_input_valid(&joybus_gc_controller, true);
     input_valid_until = millis + INPUT_VALID_MS;
-    si_device_set_input_valid(&si_device, true);
   } else {
     //
     // Handle origin packets
     //
 
     // Copy the origin values from the packet
-    struct si_device_gc_input_state new_origin = {
-        .stick_x       = wavebird_origin_get_stick_x(message),
-        .stick_y       = wavebird_origin_get_stick_y(message),
-        .substick_x    = wavebird_origin_get_substick_x(message),
-        .substick_y    = wavebird_origin_get_substick_y(message),
-        .trigger_left  = wavebird_origin_get_trigger_left(message),
-        .trigger_right = wavebird_origin_get_trigger_right(message),
-    };
+    struct joybus_gc_controller_input new_origin;
+    wavebird_origin_copy((uint8_t *)&new_origin.stick_x, message);
 
-    // Update the origin state in the SI device
-    si_device_gc_set_origin(&si_device, &new_origin);
+    // Update the origin state in the Joybus device
+    joybus_gc_controller_set_origin(&joybus_gc_controller, &new_origin);
   }
 }
 
@@ -243,8 +234,8 @@ static void handle_pairing_started(void)
   // Set the pairing active flag
   pairing_active = true;
 
-  // Disable SI command handling during pairing
-  enable_si_command_handling = false;
+  // Disable Joybus bus during pairing
+  joybus_disable(joybus);
 
   // Set the LED effect to indicate pairing mode
   if (status_led)
@@ -277,19 +268,16 @@ static void handle_pairing_finished(uint8_t status, uint8_t channel)
     // Slow-blink the status LED to indicate pairing timeout
     if (status_led)
       led_effect_blink(status_led, 500, 3);
-
-    // Immediately reenable SI command handling
-    enable_si_command_handling = true;
   } else {
     printf("Pairing cancelled\n");
 
     // Turn off the status LED
     if (status_led)
       led_off(status_led);
-
-    // Immediately reenable SI command handling
-    enable_si_command_handling = true;
   }
+
+  // Re-enable Joybus
+  joybus_enable(joybus);
 }
 
 // Get a printable name for the controller type
@@ -328,8 +316,8 @@ static void gpio_init(void)
   CMU_ClockEnable(cmuClock_GPIO, true);
 
   // Make SWDIO available as a GPIO, if necessary
-  if (SI_DATA_PORT == GPIO_SWDIO_PORT && SI_DATA_PIN == GPIO_SWDIO_PIN) {
-    printf("[WARNING] SI is using SWDIO as GPIO, disabling SWD\n");
+  if (JOYBUS_PORT == GPIO_SWDIO_PORT && JOYBUS_PIN == GPIO_SWDIO_PIN) {
+    printf("[WARNING] Joybus is using SWDIO as GPIO, disabling SWD\n");
     GPIO_DbgSWDIOEnable(false);
   }
 
@@ -389,11 +377,15 @@ int main(void)
     wavebird_radio_set_channel(settings.chan);
   }
 
-  // Initialize the SI bus
-  si_init(SI_DATA_PORT, SI_DATA_PIN, SI_MODE_DEVICE, 200000, 250000);
+  // Initialize Joybus
+  joybus_gecko_init(&joybus_gecko, JOYBUS_PORT, JOYBUS_PIN, JOYBUS_TIMER, JOYBUS_USART);
+  joybus_target_register(joybus, JOYBUS_TARGET(&joybus_gc_controller));
 
   // Register to handle controller SI commands
   initialize_controller(settings.cont_type);
+
+  // Enable Joybus
+  joybus_enable(joybus);
 
   // Lets-a-go!
   printf("WavePhoenix receiver ready!\n");
@@ -402,15 +394,8 @@ int main(void)
   printf("- Controller type:  %s\n", get_controller_type_name(settings.cont_type));
   printf("\n");
 
-  // Wait for the SI bus to be idle before starting the main loop
-  si_await_bus_idle();
-
   // Main loop
   while (1) {
-    // Check if we need to initiate the next SI transfer
-    if (enable_si_command_handling)
-      si_command_process();
-
     // Check for new wavebird packets
     wavebird_radio_process();
 
@@ -419,7 +404,7 @@ int main(void)
       led_effect_update(status_led, millis);
 
     // Invalidate stale inputs
-    if (si_device.input_valid && (int32_t)(millis - input_valid_until) >= 0)
-      si_device_set_input_valid(&si_device, false);
+    if (joybus_gc_controller.input_valid && (int32_t)(millis - input_valid_until) >= 0)
+      joybus_gc_controller_input_valid(&joybus_gc_controller, false);
   }
 }
