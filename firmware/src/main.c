@@ -8,9 +8,8 @@
 
 #include "si/commands.h"
 #include "si/device/gc_controller.h"
-#include "wavebird/message.h"
-#include "wavebird/packet.h"
-#include "wavebird/radio.h"
+
+#include <wavebird/wavebird.h>
 
 #include "button.h"
 #include "channel_wheel.h"
