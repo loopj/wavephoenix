@@ -6,15 +6,6 @@ The receiver uses a cheap, off-the-shelf wireless module (the [RF-BM-BG22C3](htt
 
 <img src="images/mini-receiver.png" alt="WavePhoenix Mini Receiver" width="49%"/> <img src="images/mini-receiver-pcb.png" alt="WavePhoenix Mini Receiver" width="49%"/>
 
-## Features
-
-- Full compatibility with the original WaveBird controller
-- One-button virtual pairing, like modern wireless devices
-- Status LED to indicate pairing status and radio activity
-- Over-the-air firmware updates via Bluetooth
-- Open source hardware and firmware
-- 3D printable case
-
 ## Build Guide
 
 ### Parts
@@ -79,10 +70,9 @@ Unfortunately the RF-BM-BG22C3 module is not available for JLC's awesome economi
 
 ## Case
 
-A 3D printable case for the receiver can be found in the [`case`](case) directory. The case is designed to fit the assembled PCB and has a slot for the GameCube connector.
+I highly recommend you use [SadSnifit's WavePhoenix shell](https://makerworld.com/en/models/1463984-wavephoenix-wavebird-shell) for the case, it is very well designed and looks great.
 
-I recommend printing the parts in the following orientation:
-![images/print-orientation.png](images/print-orientation.png)
+Alternatively, my original 3D printable case for the receiver can be found in the [`case`](case) directory.
 
 ## Cable
 
