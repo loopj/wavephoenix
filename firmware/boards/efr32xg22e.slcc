@@ -1,0 +1,36 @@
+id: efr32xg22e
+label: efr32xg22e
+package: "ext-comp"
+description: WavePhoenix board support for EFR32xG22E
+category: External
+quality: production
+
+requires:
+  - name: brd2710a
+  - name: iostream_recommended_stream
+  - name: iostream_retarget_stdio
+  - name: printf
+
+define:
+  - name: JOYBUS_PORT
+    value: gpioPortD
+  - name: JOYBUS_PIN
+    value: 3
+  - name: JOYBUS_TIMER
+    value: TIMER1
+  - name: JOYBUS_USART
+    value: USART0
+  - name: HAS_PAIR_BTN
+    value: 1
+  - name: PAIR_BTN_PORT
+    value: gpioPortC
+  - name: PAIR_BTN_PIN
+    value: 7
+  - name: HAS_STATUS_LED
+    value: 1
+  - name: STATUS_LED_PORT
+    value: gpioPortA
+  - name: STATUS_LED_PIN
+    value: 4
+  - name: STATUS_LED_INVERT
+    value: 0

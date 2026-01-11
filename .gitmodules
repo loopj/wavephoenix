@@ -1,0 +1,6 @@
+[submodule "firmware/libwavebird"]
+	path = firmware/libwavebird
+	url = https://github.com/loopj/libwavebird.git
+[submodule "firmware/libjoybus"]
+	path = firmware/libjoybus
+	url = https://github.com/loopj/libjoybus.git

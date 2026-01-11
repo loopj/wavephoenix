@@ -1,0 +1,45 @@
+project_name: wavephoenix
+description: WavePhoenix
+quality: production
+
+sdk:
+  id: simplicity_sdk
+  version: 2025.6.2
+
+component:
+  - id: clock_manager
+  - id: device_init
+  - id: sl_main
+  - id: sl_main_custom_main
+  - id: apploader
+  - id: bootloader_interface
+  - id: gpiointerrupt
+  - id: emlib
+  - id: libjoybus
+    from: libjoybus
+  - id: libwavebird
+    from: libwavebird
+
+include:
+  - path: src
+
+source:
+  - path: src/button.c
+  - path: src/channel_wheel.c
+  - path: src/led.c
+  - path: src/main.c
+  - path: src/settings.c
+
+configuration:
+  - name: SL_BOARD_ENABLE_VCOM
+    value: 1
+  - name: SL_CLOCK_MANAGER_HFRCO_DPLL_EN
+    value: 1
+  - name: SL_CLOCK_MANAGER_DEFAULT_HF_CLOCK_SOURCE
+    value: SL_CLOCK_MANAGER_DEFAULT_HF_CLOCK_SOURCE_HFRCODPLL
+  - name: SL_CLOCK_MANAGER_EM01GRPACLK_SOURCE
+    value: CMU_EM01GRPACLKCTRL_CLKSEL_HFXO
+
+define:
+  - name: APP_PROPERTIES_CONFIG_FILE
+    value: '"app_properties.h"'
