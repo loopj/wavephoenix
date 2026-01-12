@@ -53,8 +53,8 @@ The firmware for WavePhoenix is composed of the following components:
 
 - [`libwavebird`](https://github.com/loopj/libwavebird) - my implementation of Nintendo's WaveBird protocol for Silicon Labs Gecko SoCs
 - [`libjoybus`](https://github.com/loopj/libjoybus) - my implementation of the Joybus protocol used by N64 and GameCube controllers
-- [`firmware`](firmware) - reference implementation of firmware for a WaveBird receiver
-- [`bootloader`](bootloader) - bootloader for updating application firmware via Bluetooth
+- [`firmware/app`](firmware/app) - the main app firmware; a reference implementation of a WaveBird receiver
+- [`firmware/bootloader`](firmware/bootloader) - bootloader to provide over-the-air firmware updates via Bluetooth
 
 ## Worklog
 
