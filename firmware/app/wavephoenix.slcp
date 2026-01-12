@@ -43,3 +43,7 @@ configuration:
 define:
   - name: APP_PROPERTIES_CONFIG_FILE
     value: '"app_properties.h"'
+
+toolchain_settings:
+  - option: gcc_compiler_option
+    value: "-Wno-unused-parameter"

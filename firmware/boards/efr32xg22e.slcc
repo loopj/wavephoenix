@@ -12,6 +12,7 @@ requires:
   - name: printf
 
 define:
+  # Joybus configuration
   - name: JOYBUS_PORT
     value: gpioPortD
   - name: JOYBUS_PIN
@@ -20,12 +21,16 @@ define:
     value: TIMER1
   - name: JOYBUS_USART
     value: USART0
+
+  # Pair button configuration
   - name: HAS_PAIR_BTN
     value: 1
   - name: PAIR_BTN_PORT
     value: gpioPortC
   - name: PAIR_BTN_PIN
     value: 7
+
+  # Status LED configuration
   - name: HAS_STATUS_LED
     value: 1
   - name: STATUS_LED_PORT
@@ -34,3 +39,9 @@ define:
     value: 4
   - name: STATUS_LED_INVERT
     value: 0
+
+  # Bootloader button configuration
+  - name: SL_BTL_BUTTON_PORT
+    value: gpioPortC
+  - name: SL_BTL_BUTTON_PIN
+    value: 7
