@@ -238,21 +238,9 @@ You can always find the latest receiver firmware in the [latest release](https:/
 
 The mini receiver uses the `rf-bm-bg22c3` build of the firmware, which is specifically designed for the RF-BM-BG22C3 module.
 
-#### Using the WavePhoenix Web App
+#### Using WavePhoenix Web
 
-If you have a computer with Bluetooth or an Android phone, you can use the [WavePhoenix Web App](https://web.wavephoenix.com) in Google Chrome to flash the firmware.
-
-#### Using the WavePhoenix CLI
-
-If you have a computer with Bluetooth, you can also use the [WavePhoenix CLI](https://github.com/loopj/wavephoenix-cli) to flash the firmware:
-
-```bash
-wavephoenix flash firmware.gbl
-```
-
-#### Using the Simplicity Connect app
-
-Another option is to use the [Simplicity Connect mobile app](https://www.silabs.com/developer-tools/simplicity-connect-mobile-app?tab=downloads) to flash the firmware.
+If you have a computer with Bluetooth or an Android phone, you can use [WavePhoenix Web](https://web.wavephoenix.com) in Google Chrome to flash the firmware.
 
 #### Flashing via SWD
 
