@@ -1,0 +1,14 @@
+project_name: bootloader
+quality: production
+description: WavePhoenix Bootloader
+
+component:
+  - id: bootloader_core
+  - id: bootloader_apploader
+  - id: bootloader_image_parser
+  - id: bootloader_debug
+  - id: bootloader_gpio_activation
+
+configuration:
+  - name: BTL_APPLOADER_DEVICE_NAME
+    value: "\"WavePhoenix\""

@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
-    paths: ["bootloader/**", "firmware/**"]
+    paths: ["firmware/**"]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -32,7 +32,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build unzip wget
+          sudo apt-get install -y unzip wget
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -118,34 +118,36 @@ jobs:
 
       # Build bootloader
       - name: Generate bootloader project files
-        working-directory: bootloader
+        working-directory: firmware/bootloader
         run: |
-          slc generate bootloader-${{ matrix.board }}.slcp \
-            -o cmake \
+          slc generate bootloader.slcp \
+            --with "${{ matrix.board }};wavephoenix" \
+            --sdk-extensions=../boards \
+            -o makefile \
             -d target/${{ matrix.board }}
 
       - name: Build bootloader
-        working-directory: bootloader/target/${{ matrix.board }}/bootloader_cmake
+        working-directory: firmware/bootloader
         run: |
-          cmake --workflow --preset project
+          make -C target/${{ matrix.board }} -f bootloader.Makefile release
 
       # Build firmware
-      - name: Generate firmware project files
-        working-directory: firmware
+      - name: Generate app firmware project files
+        working-directory: firmware/app
         run: |
           slc generate wavephoenix.slcp \
             --with "${{ matrix.board }};wavephoenix" \
-            --sdk-extensions=.,libjoybus,libwavebird \
-            -o cmake \
+            --sdk-extensions=../boards,../libjoybus,../libwavebird \
+            -o makefile \
             -d target/${{ matrix.board }}
 
-      - name: Build firmware
-        working-directory: firmware/target/${{ matrix.board }}/wavephoenix_cmake
+      - name: Build app firmware
+        working-directory: firmware/app
         run: |
-          cmake --workflow --preset project
+          make -C target/${{ matrix.board }} -f wavephoenix.Makefile release
 
-      - name: Generate firmware .gbl
-        working-directory: firmware/target/${{ matrix.board }}/wavephoenix_cmake/build/default_config
+      - name: Generate app firmware .gbl
+        working-directory: firmware/app/target/${{ matrix.board }}/build/release
         run: |
           commander gbl create \
             --app wavephoenix.s37 \
@@ -160,14 +162,13 @@ jobs:
             VERSION="trunk"
           fi
 
-          mv bootloader/target/${{ matrix.board }}/bootloader_cmake/build/default_config/bootloader.hex "wavephoenix-bootloader-${VERSION}-${{ matrix.board }}.hex"
-          mv firmware/target/${{ matrix.board }}/wavephoenix_cmake/build/default_config/wavephoenix.hex "wavephoenix-receiver-${VERSION}-${{ matrix.board }}.hex"
-          mv firmware/target/${{ matrix.board }}/wavephoenix_cmake/build/default_config/wavephoenix.gbl "wavephoenix-receiver-${VERSION}-${{ matrix.board }}.gbl"
+          mv firmware/bootloader/target/${{ matrix.board }}/build/release/bootloader.hex "wavephoenix-bootloader-${VERSION}-${{ matrix.board }}.hex"
+          mv firmware/app/target/${{ matrix.board }}/build/release/wavephoenix.hex "wavephoenix-receiver-${VERSION}-${{ matrix.board }}.hex"
+          mv firmware/app/target/${{ matrix.board }}/build/release/wavephoenix.gbl "wavephoenix-receiver-${VERSION}-${{ matrix.board }}.gbl"
 
       - name: Update trunk tag
         if: github.ref == 'refs/heads/main'
         run: |
-          cd ${{ env.REPO_PATH }}
           git tag -f trunk
           git push -f origin trunk
         env:

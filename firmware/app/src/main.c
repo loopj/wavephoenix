@@ -111,6 +111,7 @@ static void initialize_controller(uint8_t controller_type)
       break;
     default:
       printf("Unknown controller type '%d', defaulting to WaveBird", controller_type);
+      /* fall through */
     case WP_CONT_TYPE_GC_WAVEBIRD:
       joybus_gc_controller_init(&joybus_gc_controller, JOYBUS_WAVEBIRD_RECEIVER);
       break;
