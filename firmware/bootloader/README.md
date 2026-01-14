@@ -47,10 +47,9 @@ If you are using a generic SWD debug probe, you can use OpenOCD to flash the boo
 3. If this is your first time flashing this chip, you'll need to do a full device erase to unlock the debug interface:
 
       ```bash
-      openocd -f interface/cmsis-dap.cfg \
-            -c "transport select swd" \
-            -f target/efm32s2.cfg \
-            -c "init; halt; efm32 mass_erase 0; exit"
+      openocd -f "interface/cmsis-dap.cfg" \
+              -f "target/efm32s2.cfg" \
+              -c "init; efm32s2_dci_device_erase; shutdown"
       ```
 
 4. Disconnect then reconnect the debug probe.

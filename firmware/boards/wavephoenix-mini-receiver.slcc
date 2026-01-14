@@ -1,21 +1,18 @@
-id: efr32xg22e
+id: wavephoenix-mini-receiver
 package: ext-comp
-description: WavePhoenix board support for EFR32xG22E
+description: Board support for the WavePhoenix Mini Receiver
 category: External
 quality: production
 
 requires:
-  - name: brd2710a
-  - name: iostream_recommended_stream
-  - name: iostream_retarget_stdio
-  - name: printf
+  - name: rf-bm-bg22c3
 
 define:
   # Joybus configuration
   - name: JOYBUS_PORT
-    value: gpioPortD
+    value: gpioPortA
   - name: JOYBUS_PIN
-    value: 3
+    value: 2
   - name: JOYBUS_TIMER
     value: TIMER1
   - name: JOYBUS_USART
@@ -25,22 +22,22 @@ define:
   - name: HAS_PAIR_BTN
     value: 1
   - name: PAIR_BTN_PORT
-    value: gpioPortC
+    value: gpioPortB
   - name: PAIR_BTN_PIN
-    value: 7
+    value: 0
 
   # Status LED configuration
   - name: HAS_STATUS_LED
     value: 1
   - name: STATUS_LED_PORT
-    value: gpioPortA
+    value: gpioPortC
   - name: STATUS_LED_PIN
-    value: 4
+    value: 1
   - name: STATUS_LED_INVERT
     value: 0
 
   # Bootloader button configuration
   - name: SL_BTL_BUTTON_PORT
-    value: gpioPortC
+    value: gpioPortB
   - name: SL_BTL_BUTTON_PIN
-    value: 7
+    value: 0

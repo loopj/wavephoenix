@@ -75,7 +75,7 @@ struct {
 
 // Joybus state
 static struct joybus_gecko joybus_gecko;
-static struct joybus_gc_controller joybus_gc_controller;
+static struct joybus_gc_controller wavebird_controller;
 static struct joybus *joybus = JOYBUS(&joybus_gecko);
 
 // Buttons, switches, and LEDs
@@ -97,25 +97,6 @@ static volatile uint32_t millis = 0;
 void SysTick_Handler(void)
 {
   millis++;
-}
-
-// Initialize (or reinitialize) as a controller on the SI bus
-static void initialize_controller(uint8_t controller_type)
-{
-  switch (controller_type) {
-    case WP_CONT_TYPE_GC_WIRED:
-      joybus_gc_controller_init(&joybus_gc_controller, JOYBUS_GAMECUBE_CONTROLLER);
-      break;
-    case WP_CONT_TYPE_GC_WIRED_NOMOTOR:
-      joybus_gc_controller_init(&joybus_gc_controller, JOYBUS_GAMECUBE_CONTROLLER | JOYBUS_ID_GCN_NO_MOTOR);
-      break;
-    default:
-      printf("Unknown controller type '%d', defaulting to WaveBird", controller_type);
-      /* fall through */
-    case WP_CONT_TYPE_GC_WAVEBIRD:
-      joybus_gc_controller_init(&joybus_gc_controller, JOYBUS_WAVEBIRD_RECEIVER);
-      break;
-  }
 }
 
 #if HAS_PAIR_BTN
@@ -164,13 +145,13 @@ static void handle_wavebird_packet(const uint8_t *packet)
     // Check the controller id is as expected
     if (settings.cont_type == WP_CONT_TYPE_GC_WAVEBIRD) {
       // Implement wireless ID pinning exactly as OEM WaveBird receivers do
-      if (joybus_gc_controller_wireless_id_fixed(&joybus_gc_controller)) {
+      if (joybus_gc_controller_wireless_id_fixed(&wavebird_controller)) {
         // Drop packets from other controllers if the ID has been fixed
-        if (joybus_gc_controller_get_wireless_id(&joybus_gc_controller) != wireless_id)
+        if (joybus_gc_controller_get_wireless_id(&wavebird_controller) != wireless_id)
           return;
       } else {
         // Set the controller ID if it is not fixed
-        joybus_gc_controller_set_wireless_id(&joybus_gc_controller, wireless_id);
+        joybus_gc_controller_set_wireless_id(&wavebird_controller, wireless_id);
       }
     } else {
       // Emulate wireless ID pinning for wired controllers
@@ -196,15 +177,15 @@ static void handle_wavebird_packet(const uint8_t *packet)
     //
 
     // Copy the buttons from the WaveBird message
-    joybus_gc_controller.input.buttons &= ~JOYBUS_GCN_BUTTON_MASK;
-    joybus_gc_controller.input.buttons |=
+    wavebird_controller.input.buttons &= ~JOYBUS_GCN_BUTTON_MASK;
+    wavebird_controller.input.buttons |=
         ((message[3] & 0x80) >> 7) | ((message[2] & 0x0F) << 1) | ((message[3] & 0x7F) << 8);
 
     // Copy the stick, substick, and trigger values
-    memcpy(&joybus_gc_controller.input.stick_x, &message[4], 6);
+    memcpy(&wavebird_controller.input.stick_x, &message[4], 6);
 
     // Set the input state as valid, and (re)set the validity timer
-    joybus_gc_controller_input_valid(&joybus_gc_controller, true);
+    joybus_gc_controller_input_valid(&wavebird_controller, true);
     input_valid_until = millis + INPUT_VALID_MS;
   } else {
     //
@@ -216,7 +197,7 @@ static void handle_wavebird_packet(const uint8_t *packet)
     wavebird_origin_copy((uint8_t *)&new_origin.stick_x, message);
 
     // Update the origin state in the Joybus device
-    joybus_gc_controller_set_origin(&joybus_gc_controller, &new_origin);
+    joybus_gc_controller_set_origin(&wavebird_controller, &new_origin);
   }
 }
 
@@ -260,9 +241,6 @@ static void handle_pairing_finished(uint8_t status, uint8_t channel)
     // Set the LED solid for 1 second to indicate pairing success
     if (status_led)
       led_effect_blink(status_led, 1000, 1);
-
-    // Reset the controller
-    initialize_controller(settings.cont_type);
   } else if (status == WB_RADIO_PAIRING_TIMEOUT) {
     printf("Pairing timed out\n");
 
@@ -378,12 +356,25 @@ int main(void)
     wavebird_radio_set_channel(settings.chan);
   }
 
+  // Initialize the WaveBird controller target
+  switch (settings.cont_type) {
+    case WP_CONT_TYPE_GC_WIRED:
+      joybus_gc_controller_init(&wavebird_controller, JOYBUS_GAMECUBE_CONTROLLER);
+      break;
+    case WP_CONT_TYPE_GC_WIRED_NOMOTOR:
+      joybus_gc_controller_init(&wavebird_controller, JOYBUS_GAMECUBE_CONTROLLER | JOYBUS_ID_GCN_NO_MOTOR);
+      break;
+    default:
+      printf("Unknown controller type '%d', defaulting to WaveBird", settings.cont_type);
+      /* fall through */
+    case WP_CONT_TYPE_GC_WAVEBIRD:
+      joybus_gc_controller_init(&wavebird_controller, JOYBUS_WAVEBIRD_RECEIVER);
+      break;
+  }
+
   // Initialize Joybus
   joybus_gecko_init(&joybus_gecko, JOYBUS_PORT, JOYBUS_PIN, JOYBUS_TIMER, JOYBUS_USART);
-  joybus_target_register(joybus, JOYBUS_TARGET(&joybus_gc_controller));
-
-  // Register to handle controller SI commands
-  initialize_controller(settings.cont_type);
+  joybus_target_register(joybus, JOYBUS_TARGET(&wavebird_controller));
 
   // Enable Joybus
   joybus_enable(joybus);
@@ -405,7 +396,7 @@ int main(void)
       led_effect_update(status_led, millis);
 
     // Invalidate stale inputs
-    if (joybus_gc_controller.input_valid && (int32_t)(millis - input_valid_until) >= 0)
-      joybus_gc_controller_input_valid(&joybus_gc_controller, false);
+    if (wavebird_controller.input_valid && (int32_t)(millis - input_valid_until) >= 0)
+      joybus_gc_controller_input_valid(&wavebird_controller, false);
   }
 }

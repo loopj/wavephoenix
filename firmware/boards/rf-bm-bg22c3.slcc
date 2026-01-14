@@ -1,46 +1,16 @@
 id: rf-bm-bg22c3
-label: rf-bm-bg22c3
-package: "ext-comp"
-description: WavePhoenix board support for RF-BM-BG22C3
+package: ext-comp
+description: Board support for RF-BM-BG22C3 based boards
 category: External
 quality: production
 
 requires:
   - name: efr32bg22c224f512gm32
 
+provides:
+  - name: rf-bm-bg22c3
+
 define:
-  # Joybus configuration
-  - name: JOYBUS_PORT
-    value: gpioPortA
-  - name: JOYBUS_PIN
-    value: 2
-  - name: JOYBUS_TIMER
-    value: TIMER1
-  - name: JOYBUS_USART
-    value: USART0
-
-  # Pair button configuration
-  - name: HAS_PAIR_BTN
-    value: 1
-  - name: PAIR_BTN_PORT
-    value: gpioPortB
-  - name: PAIR_BTN_PIN
-    value: 0
-  - name: HAS_STATUS_LED
-    value: 1
-
-  # Status LED configuration
-  - name: STATUS_LED_PORT
-    value: gpioPortC
-  - name: STATUS_LED_PIN
-    value: 1
-  - name: STATUS_LED_INVERT
-    value: 0
+  # Crystal oscillator tuning
   - name: SL_CLOCK_MANAGER_HFXO_CTUNE
     value: 72
-
-  # Bootloader button configuration
-  - name: SL_BTL_BUTTON_PORT
-    value: gpioPortB
-  - name: SL_BTL_BUTTON_PIN
-    value: 0
