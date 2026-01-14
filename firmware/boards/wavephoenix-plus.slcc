@@ -1,0 +1,95 @@
+id: wavephoenix-plus
+package: ext-comp
+description: Board support for WavePhoenix+
+category: External
+quality: production
+
+requires:
+  - name: rf-bm-bg22c3
+
+provides:
+  - name: wavephoenix-plus
+
+define:
+  # Board identifier
+  - name: BOARD_WAVEPHOENIX_PLUS
+
+  # Joybus configuration
+  - name: JOYBUS_PORT
+    value: gpioPortA
+  - name: JOYBUS_PIN
+    value: 2
+  - name: JOYBUS_TIMER
+    value: TIMER1
+  - name: JOYBUS_USART
+    value: USART0
+
+  # Pair button configuration
+  - name: HAS_PAIR_BTN
+    value: 1
+  - name: PAIR_BTN_PORT
+    value: gpioPortB
+  - name: PAIR_BTN_PIN
+    value: 0
+
+  # Bootloader button configuration
+  - name: SL_BTL_BUTTON_PORT
+    value: gpioPortB
+  - name: SL_BTL_BUTTON_PIN
+    value: 0
+
+  # I2C configuration
+  - name: I2C_SCL_PORT
+    value: gpioPortA
+  - name: I2C_SCL_PIN
+    value: 6
+  - name: I2C_SDA_PORT
+    value: gpioPortA
+  - name: I2C_SDA_PIN
+    value: 5
+
+  # TCA9555 configuration
+  - name: TCA9555_ADDR
+    value: 0x20
+  - name: TCA9555_IRQ_PORT
+    value: gpioPortA
+  - name: TCA9555_IRQ_PIN
+    value: 1
+
+  # ADC channels and bus allocations
+  - name: STICK_X_IADC
+    value: iadcPosInputPortCPin1
+  - name: STICK_X_BUS
+    value: CDBUSALLOC
+  - name: STICK_X_BUSALLOC
+    value: GPIO_CDBUSALLOC_CDODD0_ADC0
+  - name: STICK_Y_IADC
+    value: iadcPosInputPortCPin3
+  - name: STICK_Y_BUS
+    value: CDBUSALLOC
+  - name: STICK_Y_BUSALLOC
+    value: GPIO_CDBUSALLOC_CDODD0_ADC0
+  - name: SUBSTICK_X_IADC
+    value: iadcPosInputPortBPin1
+  - name: SUBSTICK_X_BUS
+    value: BBUSALLOC
+  - name: SUBSTICK_X_BUSALLOC
+    value: GPIO_BBUSALLOC_BODD0_ADC0
+  - name: SUBSTICK_Y_IADC
+    value: iadcPosInputPortCPin5
+  - name: SUBSTICK_Y_BUS
+    value: CDBUSALLOC
+  - name: SUBSTICK_Y_BUSALLOC
+    value: GPIO_CDBUSALLOC_CDODD1_ADC0
+  - name: TRIGGER_LEFT_IADC
+    value: iadcPosInputPortAPin4
+  - name: TRIGGER_LEFT_BUS
+    value: ABUSALLOC
+  - name: TRIGGER_LEFT_BUSALLOC
+    value: GPIO_ABUSALLOC_AEVEN1_ADC0
+  - name: TRIGGER_RIGHT_IADC
+    value: iadcPosInputPortAPin3
+  - name: TRIGGER_RIGHT_BUS
+    value: ABUSALLOC
+  - name: TRIGGER_RIGHT_BUSALLOC
+    value: GPIO_ABUSALLOC_AODD0_ADC0

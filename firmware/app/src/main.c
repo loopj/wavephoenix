@@ -14,6 +14,7 @@
 #include "button.h"
 #include "channel_wheel.h"
 #include "led.h"
+#include "local_input.h"
 #include "settings.h"
 #include "version.h"
 
@@ -75,8 +76,10 @@ struct {
 
 // Joybus state
 static struct joybus_gecko joybus_gecko;
-static struct joybus_gc_controller wavebird_controller;
 static struct joybus *joybus = JOYBUS(&joybus_gecko);
+static struct joybus_gc_controller wavebird_controller;
+static struct joybus_gc_controller local_controller;
+static struct joybus_gc_controller *active_controller = NULL;
 
 // Buttons, switches, and LEDs
 static struct led *status_led              = NULL;
@@ -89,7 +92,7 @@ static bool pairing_active = false;
 // Current settings
 static wp_settings_t settings;
 
-// Stale inpute validation
+// Stale input validation
 static uint32_t input_valid_until = 0;
 
 // Milliseconds timer
@@ -288,17 +291,39 @@ static bool qualify_packet(const uint8_t *packet)
   return (buttons & settings.pair_btns) == settings.pair_btns;
 }
 
-// Initialize the various GPIOs
-static void gpio_init(void)
+static void handle_local_input(struct joybus_gc_controller_input *input)
 {
+  // Update Joybus button states
+  local_controller.input.buttons = (local_controller.input.buttons & ~JOYBUS_GCN_BUTTON_MASK) | input->buttons;
+
+  // Update Joybus analog states
+  local_controller.input.stick_x       = input->stick_x;
+  local_controller.input.stick_y       = input->stick_y;
+  local_controller.input.substick_x    = input->substick_x;
+  local_controller.input.substick_y    = input->substick_y;
+  local_controller.input.trigger_left  = input->trigger_left;
+  local_controller.input.trigger_right = input->trigger_right;
+}
+
+static bool motor_changed = false;
+static bool motor_enabled = false;
+void motor_state_change_callback(struct joybus_gc_controller *controller, enum joybus_gcn_motor_state motor_state)
+{
+  motor_enabled = (motor_state == JOYBUS_GCN_MOTOR_RUMBLE);
+  motor_changed = true;
+}
+
+int main(void)
+{
+  // Initialize the device
+  sl_main_init();
+
   // Enable GPIO clocks
   CMU_ClockEnable(cmuClock_GPIO, true);
 
-  // Make SWDIO available as a GPIO, if necessary
-  if (JOYBUS_PORT == GPIO_SWDIO_PORT && JOYBUS_PIN == GPIO_SWDIO_PIN) {
-    printf("[WARNING] Joybus is using SWDIO as GPIO, disabling SWD\n");
-    GPIO_DbgSWDIOEnable(false);
-  }
+  // Make SWDIO/SWCLK available as a GPIOs
+  GPIO_DbgSWDIOEnable(false);
+  GPIO_DbgSWDClkEnable(false);
 
   // Initialize status LED, if present
 #if HAS_STATUS_LED
@@ -325,15 +350,6 @@ static void gpio_init(void)
                      CHANNEL_WHEEL_PIN_3);
   channel_wheel_set_change_callback(channel_wheel, handle_channel_wheel_change);
 #endif
-}
-
-int main(void)
-{
-  // Initialize the device
-  sl_main_init();
-
-  // Initialize the GPIOs
-  gpio_init();
 
   // Enable millisecond systick interrupts
   SysTick_Config(CMU_ClockFreqGet(cmuClock_CORE) / 1000);
@@ -372,12 +388,29 @@ int main(void)
       break;
   }
 
+#ifdef BOARD_WAVEPHOENIX_PLUS
+  // Default to local input on WavePhoenix Plus
+  active_controller = &local_controller;
+#else
+  // Default to WaveBird input on other boards
+  active_controller = &wavebird_controller;
+#endif
+
   // Initialize Joybus
   joybus_gecko_init(&joybus_gecko, JOYBUS_PORT, JOYBUS_PIN, JOYBUS_TIMER, JOYBUS_USART);
-  joybus_target_register(joybus, JOYBUS_TARGET(&wavebird_controller));
+  joybus_target_register(joybus, JOYBUS_TARGET(active_controller));
 
   // Enable Joybus
   joybus_enable(joybus);
+
+#ifdef BOARD_WAVEPHOENIX_PLUS
+  // Initialize the local input controller target
+  joybus_gc_controller_init(&local_controller, JOYBUS_GAMECUBE_CONTROLLER);
+  joybus_gc_controller_set_motor_callback(&local_controller, motor_state_change_callback);
+
+  // Initialize local inputs
+  local_input_init(handle_local_input);
+#endif
 
   // Lets-a-go!
   printf("WavePhoenix receiver ready!\n");
@@ -391,12 +424,24 @@ int main(void)
     // Check for new wavebird packets
     wavebird_radio_process();
 
+#ifdef BOARD_WAVEPHOENIX_PLUS
+    // Populate local input controller state
+    local_input_process();
+
+    // Set motor state
+    if (motor_changed) {
+      motor_changed = false;
+      local_input_set_motor_state(motor_enabled);
+    }
+#endif
+
     // Update status LED
     if (status_led)
       led_effect_update(status_led, millis);
 
-    // Invalidate stale inputs
-    if (wavebird_controller.input_valid && (int32_t)(millis - input_valid_until) >= 0)
+    // Invalidate stale wireless inputs
+    if (wavebird_controller.input_valid && (int32_t)(millis - input_valid_until) >= 0) {
       joybus_gc_controller_input_valid(&wavebird_controller, false);
+    }
   }
 }

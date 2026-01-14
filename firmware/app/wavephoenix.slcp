@@ -29,6 +29,10 @@ source:
   - path: src/led.c
   - path: src/main.c
   - path: src/settings.c
+  - path: src/tca9555.c
+    condition: [wavephoenix-plus]
+  - path: src/local_input.c
+    condition: [wavephoenix-plus]
 
 configuration:
   - name: SL_BOARD_ENABLE_VCOM
