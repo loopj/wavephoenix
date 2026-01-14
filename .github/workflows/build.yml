@@ -19,7 +19,7 @@ jobs:
 
     strategy:
       matrix:
-        board: ["efr32xg22e", "rf-bm-bg22c3"]
+        board: ["efr32xg22e", "wavephoenix-mini-receiver"]
 
     steps:
       # Checkout repository and submodules
