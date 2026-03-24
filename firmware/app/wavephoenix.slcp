@@ -30,6 +30,7 @@ source:
   - path: src/led.c
   - path: src/main.c
   - path: src/status_led.c
+  - path: src/input_source/wavebird.c
 
 configuration:
   - name: SL_BOARD_ENABLE_VCOM
