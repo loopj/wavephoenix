@@ -15,6 +15,7 @@ component:
   - id: bootloader_interface
   - id: gpiointerrupt
   - id: emlib
+  - id: nvm3_default
   - id: libjoybus
     from: libjoybus
   - id: libwavebird
@@ -28,7 +29,6 @@ source:
   - path: src/channel_wheel.c
   - path: src/led.c
   - path: src/main.c
-  - path: src/settings.c
 
 configuration:
   - name: SL_BOARD_ENABLE_VCOM

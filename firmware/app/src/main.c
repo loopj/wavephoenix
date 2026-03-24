@@ -7,6 +7,8 @@
 #include "em_rmu.h"
 #include "sl_main_init.h"
 
+#include "nvm3_default.h"
+
 #include <joybus/backend/gecko.h>
 #include <joybus/joybus.h>
 
@@ -15,10 +17,19 @@
 #include "button.h"
 #include "channel_wheel.h"
 #include "led.h"
-#include "settings.h"
 #include "version.h"
 
 #define INPUT_VALID_MS 100
+
+#define NVM3_KEY_BASE 200
+
+// Settings keys
+enum {
+  SETTING_WAVEBIRD_CHANNEL,
+  SETTING_CONTROLLER_TYPE,
+  SETTING_PIN_WIRELESS_ID,
+  SETTING_PAIRING_BUTTONS,
+};
 
 // Controller types
 typedef enum {
@@ -32,39 +43,11 @@ typedef enum {
   WP_CONT_TYPE_GC_WIRED_NOMOTOR,
 } wp_controller_type_t;
 
-// Settings structure
-typedef union {
-  struct {
-    // 0-indexed channel number (0 - 15)
-    uint32_t chan : 4;
-
-    // Should wireless ID pinning be enabled?
-    uint32_t pin_id : 1;
-
-    // Bitmask of buttons to use for pairing qualification
-    uint32_t pair_btns : 12;
-
-    // Controller type
-    uint32_t cont_type : 3;
-
-    // Reserved, must be 0
-    uint32_t _reserved : 12;
-  } __attribute__((packed));
-
-  uint32_t _align; // Ensure 4-byte alignment
-} wp_settings_t;
-
-// Default settings
-// - Present as an OEM WaveBird receiver, with wireless ID pinning enabled
-// - Start on WaveBird channel 1 (0 indexed)
-// - Virtual pairing buttons: X and Y
-static const uint32_t SETTINGS_SIGNATURE    = 0x57500000;
-static const wp_settings_t DEFAULT_SETTINGS = {
-    .chan      = 0,
-    .pin_id    = true,
-    .pair_btns = WB_BUTTONS_X | WB_BUTTONS_Y,
-    .cont_type = WP_CONT_TYPE_GC_WAVEBIRD,
-};
+// Settings storage, with defaults
+static uint8_t chan                   = 0;
+static wp_controller_type_t cont_type = WP_CONT_TYPE_GC_WAVEBIRD;
+static bool pin_id                    = true;
+static uint16_t pair_btns             = WB_BUTTONS_X | WB_BUTTONS_Y;
 
 // Packet stats
 struct {
@@ -86,9 +69,6 @@ static struct channel_wheel *channel_wheel = NULL;
 
 // Pairing state
 static bool pairing_active = false;
-
-// Current settings
-static wp_settings_t settings;
 
 // Stale inpute validation
 static uint32_t input_valid_until = 0;
@@ -139,12 +119,12 @@ static void handle_wavebird_packet(const uint8_t *packet)
   }
 
   // Handle wireless ID pinning, if enabled
-  if (settings.pin_id) {
+  if (pin_id) {
     // Get the controller ID from the packet
     uint16_t wireless_id = wavebird_message_get_controller_id(message);
 
     // Check the controller id is as expected
-    if (settings.cont_type == WP_CONT_TYPE_GC_WAVEBIRD) {
+    if (cont_type == WP_CONT_TYPE_GC_WAVEBIRD) {
       // Implement wireless ID pinning exactly as OEM WaveBird receivers do
       if (joybus_gc_controller_wireless_id_fixed(&wavebird_controller)) {
         // Drop packets from other controllers if the ID has been fixed
@@ -236,8 +216,8 @@ static void handle_pairing_finished(uint8_t status, uint8_t channel)
     printf("Pairing successful, new channel: %d\n", channel + 1);
 
     // Set the new channel and save to NVM
-    settings.chan = channel;
-    settings_save(&settings, sizeof(wp_settings_t));
+    chan = channel;
+    nvm3_writeData(nvm3_defaultHandle, NVM3_KEY_BASE + SETTING_WAVEBIRD_CHANNEL, &chan, sizeof(chan));
 
     // Set the LED solid for 1 second to indicate pairing success
     if (status_led)
@@ -286,7 +266,7 @@ static bool qualify_packet(const uint8_t *packet)
 
   // Check for a specific key combination
   uint16_t buttons = wavebird_input_state_get_buttons(message);
-  return (buttons & settings.pair_btns) == settings.pair_btns;
+  return (buttons & pair_btns) == pair_btns;
 }
 
 int main(void)
@@ -340,7 +320,10 @@ int main(void)
 #endif
 
   // Initialize persistent settings
-  settings_init(&settings, sizeof(wp_settings_t), SETTINGS_SIGNATURE, &DEFAULT_SETTINGS);
+  nvm3_readData(nvm3_defaultHandle, NVM3_KEY_BASE + SETTING_WAVEBIRD_CHANNEL, &chan, sizeof(chan));
+  nvm3_readData(nvm3_defaultHandle, NVM3_KEY_BASE + SETTING_CONTROLLER_TYPE, &cont_type, sizeof(cont_type));
+  nvm3_readData(nvm3_defaultHandle, NVM3_KEY_BASE + SETTING_PIN_WIRELESS_ID, &pin_id, sizeof(pin_id));
+  nvm3_readData(nvm3_defaultHandle, NVM3_KEY_BASE + SETTING_PAIRING_BUTTONS, &pair_btns, sizeof(pair_btns));
 
   // Initialize and configure the WaveBird radio
   wavebird_radio_configure_qualification(qualify_packet, 5);
@@ -354,11 +337,11 @@ int main(void)
     wavebird_radio_set_channel(channel_wheel_get_value(channel_wheel));
   } else {
     // Set the initial radio channel from NVM (defaulting to 1)
-    wavebird_radio_set_channel(settings.chan);
+    wavebird_radio_set_channel(chan);
   }
 
   // Initialize the WaveBird controller target
-  switch (settings.cont_type) {
+  switch (cont_type) {
     case WP_CONT_TYPE_GC_WIRED:
       joybus_gc_controller_init(&wavebird_controller, JOYBUS_GAMECUBE_CONTROLLER);
       break;
@@ -366,7 +349,7 @@ int main(void)
       joybus_gc_controller_init(&wavebird_controller, JOYBUS_GAMECUBE_CONTROLLER | JOYBUS_ID_GCN_NO_MOTOR);
       break;
     default:
-      printf("Unknown controller type '%d', defaulting to WaveBird", settings.cont_type);
+      printf("Unknown controller type '%d', defaulting to WaveBird", cont_type);
       /* fall through */
     case WP_CONT_TYPE_GC_WAVEBIRD:
       joybus_gc_controller_init(&wavebird_controller, JOYBUS_WAVEBIRD_RECEIVER);
@@ -383,8 +366,8 @@ int main(void)
   // Lets-a-go!
   printf("WavePhoenix receiver ready!\n");
   printf("- Firmware version: %d.%d.%d\n", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH);
-  printf("- Radio channel:    %u\n", settings.chan + 1);
-  printf("- Controller type:  %s\n", get_controller_type_name(settings.cont_type));
+  printf("- Radio channel:    %u\n", chan + 1);
+  printf("- Controller type:  %s\n", get_controller_type_name(cont_type));
   printf("\n");
 
   // Main loop
