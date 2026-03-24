@@ -44,9 +44,6 @@ static wp_controller_type_t cont_type = WP_CONT_TYPE_GC_WAVEBIRD;
 static bool pin_id                    = true;
 static uint16_t pair_btns             = WB_BUTTONS_X | WB_BUTTONS_Y;
 
-// Pairing state
-static bool pairing_active = false;
-
 // Stale input timer
 static sl_sleeptimer_timer_handle_t input_valid_timer;
 
@@ -156,9 +153,6 @@ static void handle_pairing_started(void)
 {
   printf("Pairing started\n");
 
-  // Set the pairing active flag
-  pairing_active = true;
-
   // Update the status LED
   status_led_set(STATUS_LED_PAIRING_ACTIVE);
 }
@@ -166,9 +160,6 @@ static void handle_pairing_started(void)
 // Handle pairing finish events
 static void handle_pairing_finished(uint8_t status, uint8_t new_chan)
 {
-  // Set the pairing active flag
-  pairing_active = false;
-
   // Save the new channel if pairing was successful
   if (status == WB_RADIO_PAIRING_SUCCESS) {
     printf("Pairing successful, new channel: %d\n", new_chan + 1);
@@ -242,7 +233,7 @@ void input_source_wavebird_process(void)
 
 void input_source_wavebird_handle_button_press(void)
 {
-  pairing_active ? wavebird_radio_stop_pairing() : wavebird_radio_start_pairing();
+  wavebird_radio_toggle_pairing();
 }
 
 struct joybus_gc_controller *input_source_wavebird_get_controller(void)

@@ -1,3 +1,10 @@
+/**
+ * WaveBird input source implementation.
+ *
+ * Populates a libjoybus GameCube controller target with input data from a
+ * WaveBird receiver, using libwavebird.
+ */
+
 #pragma once
 
 #include <joybus/target/gc_controller.h>
