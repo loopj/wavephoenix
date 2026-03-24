@@ -17,6 +17,7 @@
 #include "button.h"
 #include "channel_wheel.h"
 #include "led.h"
+#include "status_led.h"
 #include "version.h"
 
 #define INPUT_VALID_MS 100
@@ -63,7 +64,6 @@ static struct joybus_gc_controller wavebird_controller;
 static struct joybus *joybus = JOYBUS(&joybus_gecko);
 
 // Buttons, switches, and LEDs
-static struct led *status_led              = NULL;
 static struct button *pair_button          = NULL;
 static struct channel_wheel *channel_wheel = NULL;
 
@@ -148,8 +148,7 @@ static void handle_wavebird_packet(const uint8_t *packet)
   }
 
   // Blink the status LED to indicate packet reception
-  if (status_led)
-    led_effect_blink(status_led, INPUT_VALID_MS, 1);
+  status_led_set(STATUS_LED_WIRELESS_ACTIVITY);
 
   // Handle the packet
   if (wavebird_message_get_type(message) == WB_MESSAGE_TYPE_INPUT_STATE) {
@@ -201,8 +200,7 @@ static void handle_pairing_started(void)
   joybus_disable(joybus);
 
   // Set the LED effect to indicate pairing mode
-  if (status_led)
-    led_effect_blink(status_led, 150, LED_REPEAT_FOREVER);
+  status_led_set(STATUS_LED_PAIRING_ACTIVE);
 }
 
 // Handle pairing finish events
@@ -220,20 +218,17 @@ static void handle_pairing_finished(uint8_t status, uint8_t channel)
     nvm3_writeData(nvm3_defaultHandle, NVM3_KEY_BASE + SETTING_WAVEBIRD_CHANNEL, &chan, sizeof(chan));
 
     // Set the LED solid for 1 second to indicate pairing success
-    if (status_led)
-      led_effect_blink(status_led, 1000, 1);
+    status_led_set(STATUS_LED_PAIRING_SUCCESS);
   } else if (status == WB_RADIO_PAIRING_TIMEOUT) {
     printf("Pairing timed out\n");
 
     // Slow-blink the status LED to indicate pairing timeout
-    if (status_led)
-      led_effect_blink(status_led, 500, 3);
+    status_led_set(STATUS_LED_PAIRING_TIMEOUT);
   } else {
     printf("Pairing cancelled\n");
 
     // Turn off the status LED
-    if (status_led)
-      led_off(status_led);
+    status_led_set(STATUS_LED_OFF);
   }
 
   // Re-enable Joybus
@@ -294,11 +289,7 @@ int main(void)
   GPIO_DbgSWDClkEnable(false);
 
   // Initialize status LED, if present
-#if HAS_STATUS_LED
-  static struct led _status_led;
-  status_led = &_status_led;
-  led_init(status_led, STATUS_LED_PORT, STATUS_LED_PIN, STATUS_LED_INVERT);
-#endif
+  status_led_init();
 
   // Initialize the pair button, if present
 #if HAS_PAIR_BTN
@@ -376,8 +367,7 @@ int main(void)
     wavebird_radio_process();
 
     // Update status LED
-    if (status_led)
-      led_effect_update(status_led, millis);
+    status_led_update();
 
     // Invalidate stale inputs
     if (wavebird_controller.input_valid && (int32_t)(millis - input_valid_until) >= 0)

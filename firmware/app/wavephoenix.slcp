@@ -11,6 +11,7 @@ component:
   - id: device_init
   - id: sl_main
   - id: sl_main_custom_main
+  - id: sleeptimer
   - id: apploader
   - id: bootloader_interface
   - id: gpiointerrupt
@@ -29,6 +30,7 @@ source:
   - path: src/channel_wheel.c
   - path: src/led.c
   - path: src/main.c
+  - path: src/status_led.c
 
 configuration:
   - name: SL_BOARD_ENABLE_VCOM
