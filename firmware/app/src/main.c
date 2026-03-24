@@ -5,7 +5,9 @@
 #include "em_cmu.h"
 #include "em_gpio.h"
 #include "em_rmu.h"
+
 #include "sl_main_init.h"
+#include "sl_sleeptimer.h"
 
 #include "nvm3_default.h"
 
@@ -68,14 +70,15 @@ static struct button *pair_button = NULL;
 // Pairing state
 static bool pairing_active = false;
 
-// Stale inpute validation
-static uint32_t input_valid_until = 0;
+// Stale input timer
+static sl_sleeptimer_timer_handle_t input_valid_timer;
 
-// Milliseconds timer
-static volatile uint32_t millis = 0;
-void SysTick_Handler(void)
+// Handle input validity timer expiry
+static void handle_input_valid_timer_expiry(sl_sleeptimer_timer_handle_t *handle, void *data)
 {
-  millis++;
+  // If we don't receive an input packet within a certain time, mark input as invalid
+  // Internally this will cause all Joybus reads to return origin state
+  joybus_gc_controller_input_valid(&wavebird_controller, false);
 }
 
 #if HAS_PAIR_BTN
@@ -156,7 +159,7 @@ static void handle_wavebird_packet(const uint8_t *packet)
 
     // Set the input state as valid, and (re)set the validity timer
     joybus_gc_controller_input_valid(&wavebird_controller, true);
-    input_valid_until = millis + INPUT_VALID_MS;
+    sl_sleeptimer_restart_timer_ms(&input_valid_timer, INPUT_VALID_MS, handle_input_valid_timer_expiry, NULL, 0, 0);
   } else {
     //
     // Handle origin packets
@@ -259,27 +262,23 @@ int main(void)
   // Initialize the device
   sl_main_init();
 
-  // Enable millisecond systick interrupts
-  SysTick_Config(CMU_ClockFreqGet(cmuClock_CORE) / 1000);
-
   // Enable GPIO clocks
   CMU_ClockEnable(cmuClock_GPIO, true);
 
-  // Check the reset cause and clear it
+  // Check/clear the reset cause
   uint32_t resetCause = RMU_ResetCauseGet();
   RMU_ResetCauseClear();
 
-  // Make SWDIO/SWCLK available as a GPIOs
   // If the debugger caused the reset, delay first to let the probe disconnect
-  if (resetCause & EMU_RSTCAUSE_SYSREQ) {
-    while (millis < 100)
-      ;
-  }
+  if (resetCause & EMU_RSTCAUSE_SYSREQ)
+    sl_sleeptimer_delay_millisecond(100);
+
+  // Make SWDIO/SWCLK available as a GPIOs
   GPIO_DbgSWDIOEnable(false);
   GPIO_DbgSWDClkEnable(false);
 
-  // Initialize status LED, if present
-  status_led_init();
+  // Initialize NVM driver for settings storage
+  nvm3_initDefault();
 
   // Initialize the pair button, if present
 #if HAS_PAIR_BTN
@@ -289,6 +288,9 @@ int main(void)
   button_set_press_callback(pair_button, handle_pair_button_press);
   button_set_long_press_callback(pair_button, handle_pair_button_hold);
 #endif
+
+  // Initialize status LED, if present
+  status_led_init();
 
   // Initialize persistent settings
   nvm3_readData(nvm3_defaultHandle, NVM3_KEY_BASE + SETTING_WAVEBIRD_CHANNEL, &chan, sizeof(chan));
@@ -342,9 +344,5 @@ int main(void)
 
     // Update status LED
     status_led_update();
-
-    // Invalidate stale inputs
-    if (wavebird_controller.input_valid && (int32_t)(millis - input_valid_until) >= 0)
-      joybus_gc_controller_input_valid(&wavebird_controller, false);
   }
 }
