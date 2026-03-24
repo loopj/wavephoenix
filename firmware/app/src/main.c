@@ -15,7 +15,6 @@
 #include <wavebird/wavebird.h>
 
 #include "button.h"
-#include "channel_wheel.h"
 #include "led.h"
 #include "status_led.h"
 #include "version.h"
@@ -64,8 +63,7 @@ static struct joybus_gc_controller wavebird_controller;
 static struct joybus *joybus = JOYBUS(&joybus_gecko);
 
 // Buttons, switches, and LEDs
-static struct button *pair_button          = NULL;
-static struct channel_wheel *channel_wheel = NULL;
+static struct button *pair_button = NULL;
 
 // Pairing state
 static bool pairing_active = false;
@@ -92,14 +90,6 @@ static void handle_pair_button_hold()
 {
   printf("Rebooting into bootloader...\n\n");
   bootloader_rebootAndInstall();
-}
-#endif
-
-#if HAS_CHANNEL_WHEEL
-// Handle channel wheel changes
-static void handle_channel_wheel_change(struct channel_wheel *channel_wheel, uint8_t value)
-{
-  wavebird_radio_set_channel(value);
 }
 #endif
 
@@ -300,16 +290,6 @@ int main(void)
   button_set_long_press_callback(pair_button, handle_pair_button_hold);
 #endif
 
-  // Initialize channel wheel, if present
-#if HAS_CHANNEL_WHEEL
-  static struct channel_wheel _channel_wheel;
-  channel_wheel = &_channel_wheel;
-  channel_wheel_init(channel_wheel, CHANNEL_WHEEL_PORT_0, CHANNEL_WHEEL_PIN_0, CHANNEL_WHEEL_PORT_1,
-                     CHANNEL_WHEEL_PIN_1, CHANNEL_WHEEL_PORT_2, CHANNEL_WHEEL_PIN_2, CHANNEL_WHEEL_PORT_3,
-                     CHANNEL_WHEEL_PIN_3);
-  channel_wheel_set_change_callback(channel_wheel, handle_channel_wheel_change);
-#endif
-
   // Initialize persistent settings
   nvm3_readData(nvm3_defaultHandle, NVM3_KEY_BASE + SETTING_WAVEBIRD_CHANNEL, &chan, sizeof(chan));
   nvm3_readData(nvm3_defaultHandle, NVM3_KEY_BASE + SETTING_CONTROLLER_TYPE, &cont_type, sizeof(cont_type));
@@ -323,13 +303,7 @@ int main(void)
   wavebird_radio_init(handle_wavebird_packet, handle_wavebird_error);
 
   // Se the initial radio channel
-  if (channel_wheel) {
-    // Set the initial radio channel from the channel wheel
-    wavebird_radio_set_channel(channel_wheel_get_value(channel_wheel));
-  } else {
-    // Set the initial radio channel from NVM (defaulting to 1)
-    wavebird_radio_set_channel(chan);
-  }
+  wavebird_radio_set_channel(chan);
 
   // Initialize the WaveBird controller target
   switch (cont_type) {
