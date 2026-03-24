@@ -4,6 +4,7 @@
 #include "btl_interface.h"
 #include "em_cmu.h"
 #include "em_gpio.h"
+#include "em_rmu.h"
 #include "sl_main_init.h"
 
 #include <joybus/backend/gecko.h>
@@ -288,17 +289,29 @@ static bool qualify_packet(const uint8_t *packet)
   return (buttons & settings.pair_btns) == settings.pair_btns;
 }
 
-// Initialize the various GPIOs
-static void gpio_init(void)
+int main(void)
 {
+  // Initialize the device
+  sl_main_init();
+
+  // Enable millisecond systick interrupts
+  SysTick_Config(CMU_ClockFreqGet(cmuClock_CORE) / 1000);
+
   // Enable GPIO clocks
   CMU_ClockEnable(cmuClock_GPIO, true);
 
-  // Make SWDIO available as a GPIO, if necessary
-  if (JOYBUS_PORT == GPIO_SWDIO_PORT && JOYBUS_PIN == GPIO_SWDIO_PIN) {
-    printf("[WARNING] Joybus is using SWDIO as GPIO, disabling SWD\n");
-    GPIO_DbgSWDIOEnable(false);
+  // Check the reset cause and clear it
+  uint32_t resetCause = RMU_ResetCauseGet();
+  RMU_ResetCauseClear();
+
+  // Make SWDIO/SWCLK available as a GPIOs
+  // If the debugger caused the reset, delay first to let the probe disconnect
+  if (resetCause & EMU_RSTCAUSE_SYSREQ) {
+    while (millis < 100)
+      ;
   }
+  GPIO_DbgSWDIOEnable(false);
+  GPIO_DbgSWDClkEnable(false);
 
   // Initialize status LED, if present
 #if HAS_STATUS_LED
@@ -325,18 +338,6 @@ static void gpio_init(void)
                      CHANNEL_WHEEL_PIN_3);
   channel_wheel_set_change_callback(channel_wheel, handle_channel_wheel_change);
 #endif
-}
-
-int main(void)
-{
-  // Initialize the device
-  sl_main_init();
-
-  // Initialize the GPIOs
-  gpio_init();
-
-  // Enable millisecond systick interrupts
-  SysTick_Config(CMU_ClockFreqGet(cmuClock_CORE) / 1000);
 
   // Initialize persistent settings
   settings_init(&settings, sizeof(wp_settings_t), SETTINGS_SIGNATURE, &DEFAULT_SETTINGS);
